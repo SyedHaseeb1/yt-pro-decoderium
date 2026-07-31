@@ -1,0 +1,71 @@
+# Gradle
+.gradle/
+build/
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+*.ids
+*.ids.json
+.DS_Store
+captures/
+.externalNativeBuild
+.cxx/
+local.properties
+*.swp
+*.swo
+*~
+
+# Lint
+lint.xml
+lint-results.html
+lint-results.xml
+
+# Build outputs
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Signing
+signer/output/
+signer/*.jks
+signer/*.keystore
+signer/*.p12
+signer/*.pfx
+
+# Cache
+.cache/
+*.cache
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+
+# IDE
+*.sublime-workspace
+*.sublime-project
+.vscode/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Temp files
+*.tmp
+*.temp
+*.bak
