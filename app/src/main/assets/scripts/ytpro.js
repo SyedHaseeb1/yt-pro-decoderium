@@ -2459,7 +2459,7 @@ shareDiv.id = "ourshareappdiv";
 
 shareDiv.style.cssText = `
 height:100%;width:100%;position:fixed;top:0;left:0;
-display:flex;justify-content:center;
+display:flex;justify-content:center;align-items:center;
 background:rgba(0,0,0,0.4);
 z-index:99;
 `;
@@ -2467,8 +2467,6 @@ z-index:99;
 shareInnerDiv.style.cssText = `
 height:auto;width:85%;max-width:400px;
 background:${isD ? "#212121" : "#f1f1f1"};
-position:absolute;top:50%;
-transform:translateY(-50%);
 z-index:9;padding:30px;text-align:center;border-radius:25px;
 `;
 
