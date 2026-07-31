@@ -2497,29 +2497,46 @@ cursor:pointer;margin-top:10px;width:100%;
 document.body.appendChild(shareDiv);
 shareDiv.appendChild(shareInnerDiv);
 
-// Generate QR code
-if(typeof QRCode === "undefined"){
-  var script = document.createElement("script");
-  script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-  document.head.appendChild(script);
-  script.onload = ()=>{
-    new QRCode(document.getElementById("qrcode"), {
-      text: downloadUrl,
-      width: 200,
-      height: 200,
-      colorDark: "${c}",
-      colorLight: isD ? "#212121" : "#f1f1f1"
-    });
-  };
-}else{
-  new QRCode(document.getElementById("qrcode"), {
-    text: downloadUrl,
-    width: 200,
-    height: 200,
-    colorDark: "${c}",
-    colorLight: isD ? "#212121" : "#f1f1f1"
-  });
-}
+// Generate QR code with fallback
+setTimeout(()=>{
+  try{
+    if(typeof QRCode === "undefined"){
+      var script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+      script.onerror = ()=>{
+        console.warn("[YTPRO] QR library failed to load, using text fallback");
+        document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;word-break:break-all;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
+      };
+      document.head.appendChild(script);
+      script.onload = ()=>{
+        try{
+          new QRCode(document.getElementById("qrcode"), {
+            text: downloadUrl,
+            width: 200,
+            height: 200,
+            colorDark: "${c}",
+            colorLight: isD ? "#212121" : "#f1f1f1"
+          });
+          console.log("[YTPRO] QR code generated successfully");
+        }catch(e){
+          console.error("[YTPRO] QR generation error:", e);
+          document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
+        }
+      };
+    }else{
+      new QRCode(document.getElementById("qrcode"), {
+        text: downloadUrl,
+        width: 200,
+        height: 200,
+        colorDark: "${c}",
+        colorLight: isD ? "#212121" : "#f1f1f1"
+      });
+    }
+  }catch(e){
+    console.error("[YTPRO] Share error:", e);
+    document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
+  }
+}, 100);
 
 document.getElementById("shareBtn").addEventListener("click", ()=>{
   const text = `Download YT Pro - Advanced YouTube Client\n${downloadUrl}`;
