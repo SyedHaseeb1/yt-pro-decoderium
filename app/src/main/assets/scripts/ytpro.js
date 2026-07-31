@@ -956,6 +956,8 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <br>
 <div>Developer Mode <span data-action="sttCnf" data-value="devMode" style="${sttCnf(0,0,"devMode")}" ><b style="${sttCnf(0,1,"devMode")}"></b></span></div>
 <br><br>
+<button data-action="shareApp" style="width:calc(100% - 20px);padding:12px;background:${c};color:${dc};border:none;border-radius:15px;font-weight:bold;cursor:pointer;margin-bottom:20px;">📱 Share YT Pro</button>
+<br><br>
 <p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">Disclaimer</b>: This is an unofficial OSS Youtube Mod, all the logos and brand names are property of Google LLC.<br>
 You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
 <br><br></p><br><br><br>
@@ -1046,6 +1048,9 @@ var actionsList={
     localStorage.removeItem('geminiChatInfo');
     localStorage.setItem('geminiModel',value);
     el.parentElement.style.display='none';
+  },
+  shareApp:()=>{
+    window.location.hash='#shareapp';
   }
 }
 
@@ -2040,16 +2045,6 @@ function(){
 PIPlayer(true);
 });
 
-/*Share App Button*/
-var ytproShareElem=document.createElement("div");
-sty(ytproShareElem);
-ytproShareElem.style.width="140px";
-ytproShareElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.84 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.84 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg><span style="margin-left:8px">Share App<span>`;
-ytproMainDiv.appendChild(ytproShareElem);
-ytproShareElem.addEventListener("click",function(){
-window.location.hash="shareapp";
-});
-
 
 
 
@@ -2480,7 +2475,9 @@ z-index:9;padding:30px;text-align:center;border-radius:25px;
 shareInnerDiv.innerHTML = `
 <h2 style="margin-top:0;">Share YT Pro</h2>
 <p style="opacity:0.7;">Scan the QR code to download the latest version</p>
-<div id="qrcode" style="margin:20px auto;"></div>
+<div id="qrcode" style="margin:20px auto;text-align:center;">
+  <img id="qrimg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}" alt="QR Code" style="border-radius:10px;width:200px;height:200px;" onerror="this.parentElement.innerHTML='<div style=\"border:2px dashed ${c};padding:20px;border-radius:10px;\"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>';">
+</div>
 <p style="font-size:12px;margin-bottom:10px;word-break:break-all;opacity:0.6;">${downloadUrl}</p>
 <button id="shareBtn" style="
 padding:10px 20px;background:${c};color:${dc};
@@ -2497,46 +2494,7 @@ cursor:pointer;margin-top:10px;width:100%;
 document.body.appendChild(shareDiv);
 shareDiv.appendChild(shareInnerDiv);
 
-// Generate QR code with fallback
-setTimeout(()=>{
-  try{
-    if(typeof QRCode === "undefined"){
-      var script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-      script.onerror = ()=>{
-        console.warn("[YTPRO] QR library failed to load, using text fallback");
-        document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;word-break:break-all;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
-      };
-      document.head.appendChild(script);
-      script.onload = ()=>{
-        try{
-          new QRCode(document.getElementById("qrcode"), {
-            text: downloadUrl,
-            width: 200,
-            height: 200,
-            colorDark: "${c}",
-            colorLight: isD ? "#212121" : "#f1f1f1"
-          });
-          console.log("[YTPRO] QR code generated successfully");
-        }catch(e){
-          console.error("[YTPRO] QR generation error:", e);
-          document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
-        }
-      };
-    }else{
-      new QRCode(document.getElementById("qrcode"), {
-        text: downloadUrl,
-        width: 200,
-        height: 200,
-        colorDark: "${c}",
-        colorLight: isD ? "#212121" : "#f1f1f1"
-      });
-    }
-  }catch(e){
-    console.error("[YTPRO] Share error:", e);
-    document.getElementById("qrcode").innerHTML = `<div style="border:2px dashed ${c};padding:20px;border-radius:10px;"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>`;
-  }
-}, 100);
+// QR code is generated via API in the img tag above, no extra code needed here
 
 document.getElementById("shareBtn").addEventListener("click", ()=>{
   const text = `Download YT Pro - Advanced YouTube Client\n${downloadUrl}`;
