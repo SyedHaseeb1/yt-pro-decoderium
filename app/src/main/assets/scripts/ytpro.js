@@ -2471,21 +2471,21 @@ z-index:9;padding:30px;text-align:center;border-radius:25px;
 `;
 
 shareInnerDiv.innerHTML = `
-<h2 style="margin-top:0;">Share YT Pro</h2>
-<p style="opacity:0.7;">Scan the QR code to download the latest version</p>
-<div id="qrcode" style="margin:20px auto;text-align:center;">
-  <img id="qrimg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}" alt="QR Code" style="border-radius:10px;width:200px;height:200px;" onerror="this.parentElement.innerHTML='<div style=\"border:2px dashed ${c};padding:20px;border-radius:10px;\"><strong>GitHub Releases</strong><br><small>${downloadUrl}</small></div>';">
+<h2 style="margin:0 0 15px 0;font-size:24px;">Share YT Pro</h2>
+<p style="margin:0 0 15px 0;opacity:0.7;font-size:14px;">Scan the QR code to download the latest version</p>
+<div id="qrcode" style="margin:15px 0;text-align:center;">
+  <img id="qrimg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}" alt="QR Code" style="border-radius:10px;width:200px;height:200px;display:block;margin:0 auto;" onerror="this.parentElement.innerHTML='<div style=\"border:2px dashed ${c};padding:20px;border-radius:10px;text-align:center;\"><strong>GitHub Releases</strong><br><small style=\\"word-break:break-all;\\">${downloadUrl}</small></div>';">
 </div>
-<p style="font-size:12px;margin-bottom:10px;word-break:break-all;opacity:0.6;">${downloadUrl}</p>
+<p style="font-size:12px;margin:10px 0;word-break:break-all;opacity:0.6;">${downloadUrl}</p>
 <button id="shareBtn" style="
-padding:10px 20px;background:${c};color:${dc};
+width:100%;padding:12px;background:${c};color:${dc};
 border:none;border-radius:15px;font-weight:bold;
-cursor:pointer;margin-top:10px;width:100%;
+cursor:pointer;margin-top:15px;margin-bottom:10px;box-sizing:border-box;
 ">Copy Link & Share</button>
 <button id="closeShareBtn" style="
-padding:10px 20px;background:${d};color:${c};
+width:100%;padding:12px;background:${d};color:${c};
 border:none;border-radius:15px;font-weight:bold;
-cursor:pointer;margin-top:10px;width:100%;
+cursor:pointer;box-sizing:border-box;
 ">Close</button>
 `;
 
