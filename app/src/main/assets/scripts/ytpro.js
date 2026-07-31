@@ -2040,6 +2040,16 @@ function(){
 PIPlayer(true);
 });
 
+/*Share App Button*/
+var ytproShareElem=document.createElement("div");
+sty(ytproShareElem);
+ytproShareElem.style.width="140px";
+ytproShareElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.84 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.84 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg><span style="margin-left:8px">Share App<span>`;
+ytproMainDiv.appendChild(ytproShareElem);
+ytproShareElem.addEventListener("click",function(){
+window.location.hash="shareapp";
+});
+
 
 
 
@@ -2442,11 +2452,109 @@ return originalRequestFullscreen.apply(this, args);
 
 
 
+/*Share App Function*/
+function showShareApp(){
+const repoUrl = "https://github.com/SyedHaseeb1/yt-pro-decoderium/releases";
+const downloadUrl = repoUrl;
+
+var shareDiv = document.createElement("div");
+var shareInnerDiv = document.createElement("div");
+shareInnerDiv.id = "shareappdiv";
+shareDiv.id = "ourshareappdiv";
+
+shareDiv.style.cssText = `
+height:100%;width:100%;position:fixed;top:0;left:0;
+display:flex;justify-content:center;
+background:rgba(0,0,0,0.4);
+z-index:99;
+`;
+
+shareInnerDiv.style.cssText = `
+height:auto;width:85%;max-width:400px;
+background:${isD ? "#212121" : "#f1f1f1"};
+position:absolute;top:50%;
+transform:translateY(-50%);
+z-index:9;padding:30px;text-align:center;border-radius:25px;
+`;
+
+shareInnerDiv.innerHTML = `
+<h2 style="margin-top:0;">Share YT Pro</h2>
+<p style="opacity:0.7;">Scan the QR code to download the latest version</p>
+<div id="qrcode" style="margin:20px auto;"></div>
+<p style="font-size:12px;margin-bottom:10px;word-break:break-all;opacity:0.6;">${downloadUrl}</p>
+<button id="shareBtn" style="
+padding:10px 20px;background:${c};color:${dc};
+border:none;border-radius:15px;font-weight:bold;
+cursor:pointer;margin-top:10px;width:100%;
+">Copy Link & Share</button>
+<button id="closeShareBtn" style="
+padding:10px 20px;background:${d};color:${c};
+border:none;border-radius:15px;font-weight:bold;
+cursor:pointer;margin-top:10px;width:100%;
+">Close</button>
+`;
+
+document.body.appendChild(shareDiv);
+shareDiv.appendChild(shareInnerDiv);
+
+// Generate QR code
+if(typeof QRCode === "undefined"){
+  var script = document.createElement("script");
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+  document.head.appendChild(script);
+  script.onload = ()=>{
+    new QRCode(document.getElementById("qrcode"), {
+      text: downloadUrl,
+      width: 200,
+      height: 200,
+      colorDark: "${c}",
+      colorLight: isD ? "#212121" : "#f1f1f1"
+    });
+  };
+}else{
+  new QRCode(document.getElementById("qrcode"), {
+    text: downloadUrl,
+    width: 200,
+    height: 200,
+    colorDark: "${c}",
+    colorLight: isD ? "#212121" : "#f1f1f1"
+  });
+}
+
+document.getElementById("shareBtn").addEventListener("click", ()=>{
+  const text = `Download YT Pro - Advanced YouTube Client\n${downloadUrl}`;
+  if(navigator.share){
+    navigator.share({
+      title: "YT Pro",
+      text: text,
+      url: downloadUrl
+    }).catch(err => {
+      navigator.clipboard.writeText(text);
+      Android?.showToast?.("Link copied to clipboard!");
+    });
+  }else{
+    navigator.clipboard.writeText(text);
+    Android?.showToast?.("Link copied to clipboard!");
+  }
+});
+
+document.getElementById("closeShareBtn").addEventListener("click", ()=>{
+  history.back();
+});
+
+shareDiv.addEventListener("click", (e)=>{
+  if(e.target === shareDiv){
+    history.back();
+  }
+});
+}
+
 /*Check The Hash Change*/
 window.onhashchange=()=>{
 try{document.getElementById("outerdownytprodiv").remove();}catch{}
 try{document.getElementById("outerheartsdiv").remove();}catch{}
 try{document.getElementById("settingsprodiv").remove();}catch{}
+try{document.getElementById("ourshareappdiv").remove();}catch{}
 //try{document.querySelector("#ytproDownloadIndicator").remove();}catch{}
 //try{document.querySelector("#ytProDownloaderDiv").remove();}catch{}
 if(window.location.hash == "#download"){
@@ -2456,6 +2564,9 @@ ytproSettings();
 }
 else if(window.location.hash == "#hearts"){
 showHearts();
+}
+else if(window.location.hash == "#shareapp"){
+showShareApp();
 }
 
 
