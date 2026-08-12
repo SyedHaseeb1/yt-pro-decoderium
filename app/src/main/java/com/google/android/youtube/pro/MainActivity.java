@@ -114,12 +114,12 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new WebAppInterface(this, web), "Android");
         web.setWebChromeClient(new YTProWebChromeClient(this, web));
         web.setWebViewClient(new YTProWebViewClient(this, web));
+        streamManager = new BinaryStreamManager(web, this);
 
         web.loadUrl(url);
 
         setupReceiver();
         setupBackNavigation();
-        streamManager = new BinaryStreamManager(web, this);
 
 
     }

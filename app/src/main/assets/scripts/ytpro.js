@@ -956,6 +956,8 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <br>
 <div>Developer Mode <span data-action="sttCnf" data-value="devMode" style="${sttCnf(0,0,"devMode")}" ><b style="${sttCnf(0,1,"devMode")}"></b></span></div>
 <br><br>
+<button data-action="shareApp" style="width:calc(100% - 20px);padding:12px;background:${c};color:${dc};border:none;border-radius:15px;font-weight:bold;cursor:pointer;margin-bottom:20px;">📱 Share YT Pro</button>
+<br><br>
 <p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">Disclaimer</b>: This is an unofficial OSS Youtube Mod, all the logos and brand names are property of Google LLC.<br>
 You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
 <br><br></p><br><br><br>
@@ -1046,6 +1048,9 @@ var actionsList={
     localStorage.removeItem('geminiChatInfo');
     localStorage.setItem('geminiModel',value);
     el.parentElement.style.display='none';
+  },
+  shareApp:()=>{
+    window.location.hash='#shareapp';
   }
 }
 
@@ -2442,11 +2447,87 @@ return originalRequestFullscreen.apply(this, args);
 
 
 
+/*Share App Function*/
+function showShareApp(){
+const repoUrl = "https://github.com/SyedHaseeb1/yt-pro-decoderium/releases";
+const downloadUrl = repoUrl;
+
+var shareDiv = document.createElement("div");
+var shareInnerDiv = document.createElement("div");
+shareInnerDiv.id = "shareappdiv";
+shareDiv.id = "ourshareappdiv";
+
+shareDiv.style.cssText = `
+height:100%;width:100%;position:fixed;top:0;left:0;
+display:flex;justify-content:center;align-items:center;
+background:rgba(0,0,0,0.4);
+z-index:99;
+`;
+
+shareInnerDiv.style.cssText = `
+height:auto;width:85%;max-width:400px;
+background:${isD ? "#212121" : "#f1f1f1"};
+z-index:9;padding:30px;text-align:center;border-radius:25px;
+`;
+
+shareInnerDiv.innerHTML = `
+<h2 style="margin:0 0 15px 0;font-size:24px;">Share YT Pro</h2>
+<p style="margin:0 0 15px 0;opacity:0.7;font-size:14px;">Scan the QR code to download the latest version</p>
+<div id="qrcode" style="margin:15px 0;text-align:center;">
+  <img id="qrimg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(downloadUrl)}" alt="QR Code" style="border-radius:10px;width:200px;height:200px;display:block;margin:0 auto;" onerror="this.parentElement.innerHTML='<div style=\"border:2px dashed ${c};padding:20px;border-radius:10px;text-align:center;\"><strong>GitHub Releases</strong><br><small style=\\"word-break:break-all;\\">${downloadUrl}</small></div>';">
+</div>
+<p style="font-size:12px;margin:10px 0;word-break:break-all;opacity:0.6;">${downloadUrl}</p>
+<button id="shareBtn" style="
+width:100%;padding:12px;background:${c};color:${dc};
+border:none;border-radius:15px;font-weight:bold;
+cursor:pointer;margin-top:15px;margin-bottom:10px;box-sizing:border-box;
+">Copy Link & Share</button>
+<button id="closeShareBtn" style="
+width:100%;padding:12px;background:${d};color:${c};
+border:none;border-radius:15px;font-weight:bold;
+cursor:pointer;box-sizing:border-box;
+">Close</button>
+`;
+
+document.body.appendChild(shareDiv);
+shareDiv.appendChild(shareInnerDiv);
+
+// QR code is generated via API in the img tag above, no extra code needed here
+
+document.getElementById("shareBtn").addEventListener("click", ()=>{
+  const text = `Download YT Pro - Advanced YouTube Client\n${downloadUrl}`;
+  if(navigator.share){
+    navigator.share({
+      title: "YT Pro",
+      text: text,
+      url: downloadUrl
+    }).catch(err => {
+      navigator.clipboard.writeText(text);
+      Android?.showToast?.("Link copied to clipboard!");
+    });
+  }else{
+    navigator.clipboard.writeText(text);
+    Android?.showToast?.("Link copied to clipboard!");
+  }
+});
+
+document.getElementById("closeShareBtn").addEventListener("click", ()=>{
+  history.back();
+});
+
+shareDiv.addEventListener("click", (e)=>{
+  if(e.target === shareDiv){
+    history.back();
+  }
+});
+}
+
 /*Check The Hash Change*/
 window.onhashchange=()=>{
 try{document.getElementById("outerdownytprodiv").remove();}catch{}
 try{document.getElementById("outerheartsdiv").remove();}catch{}
 try{document.getElementById("settingsprodiv").remove();}catch{}
+try{document.getElementById("ourshareappdiv").remove();}catch{}
 //try{document.querySelector("#ytproDownloadIndicator").remove();}catch{}
 //try{document.querySelector("#ytProDownloaderDiv").remove();}catch{}
 if(window.location.hash == "#download"){
@@ -2456,6 +2537,9 @@ ytproSettings();
 }
 else if(window.location.hash == "#hearts"){
 showHearts();
+}
+else if(window.location.hash == "#shareapp"){
+showShareApp();
 }
 
 
