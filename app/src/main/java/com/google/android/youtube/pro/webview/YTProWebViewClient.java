@@ -67,7 +67,17 @@ public class YTProWebViewClient extends WebViewClient {
 		web.evaluateJavascript(detectNavigation, null);
 
 
-		// Load InnerTube script first (required for download functionality)
+		// Load Download script first (required for download functionality)
+		try {
+			String downloadContent = readAssetFile("scripts/download.js");
+			String downloadScript = "try { " + downloadContent + " } catch(e) { console.error('Download script error:', e); }";
+			web.evaluateJavascript(downloadScript, null);
+			Log.d("YTPRO_WVC", "Download script injected inline");
+		} catch(Exception e) {
+			Log.e("YTPRO_WVC", "Failed to load Download script", e);
+		}
+
+		// Load InnerTube script (required for download functionality)
 		try {
 			String innertubeContent = readAssetFile("scripts/innertube.js");
 			String innertubeScript = "try { " + innertubeContent + " } catch(e) { console.error('InnerTube error:', e); }";

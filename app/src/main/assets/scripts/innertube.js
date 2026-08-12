@@ -651,16 +651,19 @@ const sabrFormats = adaptiveFormats.map(f => buildSabrFormat(f));
 
 
 async function downloadSABRStream(videoItag,audioItag,isWebm,langId,enabledTrack){
-  
-  
+  console.log(`[YTPRO] Starting download: videoItag=${videoItag}, audioItag=${audioItag}, isWebm=${isWebm}, langId=${langId}, enabledTrack=${enabledTrack}`);
+
 if(!Android.isWebViewSupported()){
+  console.error('[YTPRO] WebView not supported');
   Android.showToast("Please Update your WebView.");
   return;
 }
 if(!Android.hasStoragePermission()){
+  console.error('[YTPRO] No storage permission');
   return;
 }
 
+console.log('[YTPRO] Checks passed, showing toast');
 Android.showToast("Download Started");
 
 
@@ -689,13 +692,21 @@ targetSabrAudio = sabrFormats.filter(s=> s.itag==audioItag)[0] || trashSabrAudio
 }
 
 
+console.log(`[YTPRO] Creating SabrStream with:`, {
+  videoId,
+  cpn: info.cpn,
+  sabrFormatsCount: sabrFormats?.length || 0,
+  targetVideoItag: videoItag,
+  targetAudioItag: audioItag
+});
+
 const sabrStream = new SabrStream({
 videoId: videoId,
-cpn: info.cpn, 
+cpn: info.cpn,
 serverAbrStreamingUrl: serverAbrUrl,
 videoPlaybackUstreamerConfig: rawUstreamerConfig,
 formats: sabrFormats,
-poToken: placeholderPoToken ?? undefined, 
+poToken: placeholderPoToken ?? undefined,
 clientInfo: {
 clientName: 1, // WEB
 clientVersion: yt.session.context.client.clientVersion,
@@ -705,9 +716,12 @@ osVersion: '10.0',
 durationMs: (info.basic_info.duration ?? 0) * 1000,
 fetch: async (input, init = {}) => {
 const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+console.log(`[YTPRO] SabrStream fetch: ${url}`);
 return fetch(url, { ...init, mode: 'cors', credentials: 'include' });
 },
 });
+
+console.log('[YTPRO] SabrStream created, setting up event handlers');
 
 sabrStream.on('reloadPlayerResponse', async () => {
 try {
@@ -730,17 +744,28 @@ if (fullToken) sabrStream.poToken = fullToken;
 });
 
 
-const { videoStream ,audioStream} = await sabrStream.start({
-preferMp4: !isWebm,  
-preferH264: !isWebm, 
-videoFormat: () => targetSabrVideo, 
-audioFormat: () => targetSabrAudio,
-enabledTrackTypes:enabledTrack,
-});
+console.log('[YTPRO] Calling sabrStream.start()');
+let videoStream, audioStream;
+try {
+  const result = await sabrStream.start({
+    preferMp4: !isWebm,
+    preferH264: !isWebm,
+    videoFormat: () => targetSabrVideo,
+    audioFormat: () => targetSabrAudio,
+    enabledTrackTypes:enabledTrack,
+  });
+  videoStream = result.videoStream;
+  audioStream = result.audioStream;
+  console.log('[YTPRO] Streams received:', { videoStream: !!videoStream, audioStream: !!audioStream });
+} catch (error) {
+  console.error('[YTPRO] Failed to start SabrStream:', error);
+  window.Android?.showToast?.(`Download failed: ${error.message}`);
+  return;
+}
 
 const durationSec = info.basic_info.duration || 0;
 
-
+console.log('[YTPRO] Creating downloader UI');
 createDownloaderStatus();
 createDownloaderIndicator();
 
@@ -955,88 +980,12 @@ return ytproDownDiv;
 
 
 // 1. Global registry to catch ports when Android sends them back
-const pendingStreams = {};
-
-window.addEventListener("message", (event) => {
-if (typeof event.data === "string" && event.data.startsWith("PORT_FOR:") && event.ports.length > 0) {
-const fileName = event.data.substring(9);
-if (pendingStreams[fileName]) {
-pendingStreams[fileName](event.ports[0]); // Hand the port back to pipeToDisk
-delete pendingStreams[fileName];
-}
-}
-});
-
-// 2. Helper function to request a dedicated pipe
-function createDedicatedPipe(fileName) {
-return new Promise((resolve) => {
-pendingStreams[fileName] = resolve;
-window.Android?.requestBinaryPort?.(fileName);
-});
-}
-
-// 3. pipeToDisk
-async function pipeToDisk(stream, fileName, expectedTotalBytesStr, elDetails, elProgress) {
+// Use download manager from download.js
+function pipeToDisk(stream, fileName, expectedTotalBytesStr, elDetails, elProgress) {
 const expectedBytes = parseInt(expectedTotalBytesStr || "0", 10);
-const totalMB = expectedBytes > 0 ? (expectedBytes / (1024 * 1024)).toFixed(2) : '?';
-
-const filePort = await createDedicatedPipe(fileName);
-if (!filePort) {
-console.error(`[YTPRO] Failed to get port for ${fileName}`);
-return 0;
-}
-
-const reader = stream.getReader();
-let total = 0;
-let lastLogMB = -1;
-
-try {
-const CHUNK_SIZE = 1024 * 512; 
-
-while (true) {
-const { done, value } = await reader.read();
-if (done) break;
-
-if (value?.length > 0) {
-let offset = 0;
-while (offset < value.length) {
-    const chunkBuffer = value.slice(offset, offset + CHUNK_SIZE).buffer;
-
-    // Send the binary chunk down this file's specific port
-    filePort.postMessage(chunkBuffer);
-
-    const bytesWritten = chunkBuffer.byteLength;
-    offset += bytesWritten;
-    total += bytesWritten;
-
-    const currentMBFloor = Math.floor(total / (1024 * 1024));
-    if (currentMBFloor > lastLogMB) {
-        const downloadedMB = (total / (1024 * 1024)).toFixed(2);
-        const percent = expectedBytes > 0 ? Math.round((total / expectedBytes) * 100) : -1;
-
-        elDetails.children[0].innerHTML = ` ${downloadedMB} MB / ${totalMB} MB`;
-        elProgress.style.width = percent + "%";
-        elProgress.innerHTML = percent + "%";
-
-        window.Android?.onDownloadProgress?.(percent, total);
-        lastLogMB = currentMBFloor;
-    }
-
-    await new Promise(r => setTimeout(r, 5)); 
-}
-}
-}
-} finally {
-// Tell Android THIS specific port is finished, so Java can close the file and kill the port
-filePort.postMessage("END");
-}
-
-const finalMB = (total / (1024 * 1024)).toFixed(2);
-elDetails.children[0].innerHTML = ` ${finalMB} MB / ${totalMB} MB`;
-elProgress.style.width = "100%";
-elProgress.innerHTML = "100%";
-
-return total;
+console.log(`[YTPRO] Piping to disk: ${fileName}, expected bytes: ${expectedBytes}`);
+return window.ytProDownloader?.pipeToDisk(stream, fileName, expectedBytes, elDetails, elProgress)
+  || Promise.reject(new Error('Download manager not initialized'));
 }
 
 
