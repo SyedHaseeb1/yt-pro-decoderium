@@ -26,6 +26,7 @@ import android.widget.Button;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 // Import the separated components
+import com.google.android.youtube.pro.downloader.DownloadHandler;
 import com.google.android.youtube.pro.webview.YTProWebView;
 import com.google.android.youtube.pro.webview.YTProWebViewClient;
 import com.google.android.youtube.pro.webview.YTProWebChromeClient;
@@ -112,6 +113,7 @@ public class MainActivity extends Activity {
         }
 
         web.addJavascriptInterface(new WebAppInterface(this, web), "Android");
+        web.addJavascriptInterface(new DownloadHandler(this), "DownloadHandler");
         web.setWebChromeClient(new YTProWebChromeClient(this, web));
         web.setWebViewClient(new YTProWebViewClient(this, web));
         streamManager = new BinaryStreamManager(web, this);

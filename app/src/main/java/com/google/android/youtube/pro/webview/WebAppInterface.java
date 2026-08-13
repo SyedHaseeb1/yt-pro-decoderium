@@ -24,6 +24,7 @@ import com.google.android.youtube.pro.ForegroundService;
 import com.google.android.youtube.pro.GeminiWrapper;
 import com.google.android.youtube.pro.MainActivity;
 import com.google.android.youtube.pro.R;
+import com.google.android.youtube.pro.downloader.DownloadHandler;
 import com.google.android.youtube.pro.utils.DownloadUtils;
 import com.google.android.youtube.pro.utils.MediaMuxerUtils;
 
@@ -252,5 +253,109 @@ public class WebAppInterface {
 		} else {
 			Toast.makeText(activity, activity.getString(R.string.no_pip), Toast.LENGTH_SHORT).show();
 		}
+	}
+
+	@JavascriptInterface
+	public void openDownloadDialog(String videoUrl) {
+		activity.runOnUiThread(() -> {
+			DownloadHandler handler = new DownloadHandler(activity, web);
+			handler.openDownloadDialog(videoUrl);
+		});
+	}
+
+	@JavascriptInterface
+	public void pauseVideoDownload() {
+		activity.runOnUiThread(() -> {
+			try {
+				web.evaluateJavascript("window.VideoDownloader?.pauseVideo?.()", null);
+			} catch (Exception e) {
+				android.util.Log.e("YTPRO_WebAppInterface", "Failed to pause video", e);
+			}
+		});
+	}
+
+	@JavascriptInterface
+	public void resumeVideoDownload() {
+		activity.runOnUiThread(() -> {
+			try {
+				web.evaluateJavascript("window.VideoDownloader?.resumeVideo?.()", null);
+			} catch (Exception e) {
+				android.util.Log.e("YTPRO_WebAppInterface", "Failed to resume video", e);
+			}
+		});
+	}
+
+	@JavascriptInterface
+	public void reinjectVideoListeners() {
+		activity.runOnUiThread(() -> {
+			try {
+				String listenerCode =
+						"(function() {" +
+								"    if (window.__ytVideoListenerInjected) {" +
+								"        console.log('[VideoDownloader] Listener already injected');" +
+								"        return;" +
+								"    }" +
+
+								"    window.__ytVideoListenerInjected = true;" +
+								"    window.__ytCurrentVideo = null;" +
+
+								"    function attachVideo() {" +
+								"        var video = document.querySelector('video.video-stream') || document.querySelector('video');" +
+
+								"        if (!video) {" +
+								"            return;" +
+								"        }" +
+
+								"        if (video === window.__ytCurrentVideo) {" +
+								"            return;" +
+								"        }" +
+
+								"        window.__ytCurrentVideo = video;" +
+
+								"        console.log('[VideoDownloader] New video element:', video);" +
+								"        console.log('[VideoDownloader] Initial paused:', video.paused);" +
+
+								"        video.addEventListener('play', function() {" +
+								"            console.log('[VideoDownloader] PLAY');" +
+								"        });" +
+
+								"        video.addEventListener('playing', function() {" +
+								"            console.log('[VideoDownloader] PLAYING');" +
+								"        });" +
+
+								"        video.addEventListener('pause', function() {" +
+								"            console.log('[VideoDownloader] PAUSE');" +
+								"        });" +
+
+								"        video.addEventListener('ended', function() {" +
+								"            console.log('[VideoDownloader] ENDED');" +
+								"        });" +
+
+								"        console.log('[VideoDownloader] Listeners attached');" +
+								"    }" +
+
+								"    attachVideo();" +
+
+								"    setInterval(attachVideo, 500);" +
+
+								"    console.log('[VideoDownloader] Persistent video listener started');" +
+
+								"})();";
+
+				web.evaluateJavascript(listenerCode, null);
+
+				android.util.Log.d(
+						"YTPRO_WebAppInterface",
+						"Persistent video listeners injected"
+				);
+
+			} catch (Exception e) {
+				android.util.Log.e(
+						"YTPRO_WebAppInterface",
+						"Failed to inject video listeners",
+						e
+				);
+			}
+		});
 	}
 }

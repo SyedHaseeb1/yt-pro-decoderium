@@ -1204,14 +1204,6 @@ for (var i=0; s > 1024; i++) s /= 1024;
 return `${s.toFixed(1)} ${ss[i]}`;
 }
 
-/*Video Downloader - calls separate download script*/
-function ytproDownVid(){
-  if (window.handleDownload) {
-    window.handleDownload();
-  } else {
-    console.log("[YTPRO] Download script not loaded");
-  }
-}
 
 
 
@@ -2033,7 +2025,11 @@ ytproDownVidElem.innerHTML=`${downBtn.replace('width="18"','width="24"').replace
 ytproMainDiv.appendChild(ytproDownVidElem);
 ytproDownVidElem.addEventListener("click",
 function(){
-window.location.hash="download";
+  if (window.handleDownloadClick) {
+    window.handleDownloadClick();
+  } else {
+    console.log("[YTPRO] Download handler not loaded");
+  }
 });
 
 /*PIP Button*/

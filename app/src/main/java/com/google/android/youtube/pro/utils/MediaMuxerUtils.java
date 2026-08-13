@@ -8,7 +8,9 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
+// ... (rest of imports)
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -190,6 +192,9 @@ public class MediaMuxerUtils {
                     values.put(MediaStore.Downloads.IS_PENDING, 0);
                     context.getContentResolver().update(outputUri, values, null, null);
                 }
+                
+                // Explicitly scan the file to ensure duration is calculated for seekability
+                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, null);
 
                 if (pfd != null) { pfd.close(); pfd = null; }
 

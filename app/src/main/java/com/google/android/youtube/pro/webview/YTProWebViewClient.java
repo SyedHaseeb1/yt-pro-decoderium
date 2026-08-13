@@ -32,7 +32,6 @@ public class YTProWebViewClient extends WebViewClient {
 	public void onPageFinished(WebView view, String url) {
 		Log.d("YTPRO_WVC", "Page finished: " + url);
 
-
 		// First, create Trusted Types policy to bypass CSP
 		String trustedTypesPolicy = "if(window.trustedTypes && window.trustedTypes.createPolicy && !window.trustedTypes.defaultPolicy) {" +
 			"window.trustedTypes.createPolicy('default', {" +
@@ -66,40 +65,15 @@ public class YTProWebViewClient extends WebViewClient {
 			"}, 100);";
 		web.evaluateJavascript(detectNavigation, null);
 
-
-		// Load Network Logger FIRST (logs all network requests)
+		// Load Video Downloader
 		try {
-			String networkLoggerContent = readAssetFile("scripts/network-logger.js");
-			String networkLoggerScript = "try { " + networkLoggerContent + " } catch(e) { console.error('Network Logger error:', e); }";
-			web.evaluateJavascript(networkLoggerScript, null);
-			Log.d("YTPRO_WVC", "Network Logger script injected");
+			String downloaderContent = readAssetFile("scripts/video-downloader.js");
+			String downloaderScript = "try { " + downloaderContent + " } catch(e) { console.error('Video Downloader error:', e); }";
+			web.evaluateJavascript(downloaderScript, null);
+			Log.d("YTPRO_WVC", "Video Downloader script injected");
 		} catch(Exception e) {
-			Log.e("YTPRO_WVC", "Failed to load Network Logger script", e);
+			Log.e("YTPRO_WVC", "Failed to load Video Downloader script", e);
 		}
-
-		// Load Stream Extractor (accesses YouTube player directly)
-		try {
-			String streamExtractorContent = readAssetFile("scripts/stream-extractor.js");
-			String streamExtractorScript = "try { " + streamExtractorContent + " } catch(e) { console.error('Stream Extractor error:', e); }";
-			web.evaluateJavascript(streamExtractorScript, null);
-			Log.d("YTPRO_WVC", "Stream Extractor script injected inline");
-		} catch(Exception e) {
-			Log.e("YTPRO_WVC", "Failed to load Stream Extractor script", e);
-		}
-
-		// Load Download script (required for download functionality)
-		try {
-			String downloadContent = readAssetFile("scripts/download.js");
-			String downloadScript = "try { " + downloadContent + " } catch(e) { console.error('Download script error:', e); }";
-			web.evaluateJavascript(downloadScript, null);
-			Log.d("YTPRO_WVC", "Download script injected inline");
-		} catch(Exception e) {
-			Log.e("YTPRO_WVC", "Failed to load Download script", e);
-		}
-
-		// InnerTube script disabled - Network Inspector captures streams directly
-		// and innertube.js causes CSP violations due to CDN imports
-		Log.d("YTPRO_WVC", "InnerTube script skipped (using Network Inspector instead)");
 
 		// Load YTPro script inline (to bypass Trusted Types CSP)
 		try {
