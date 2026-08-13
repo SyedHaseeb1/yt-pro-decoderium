@@ -1204,11 +1204,13 @@ for (var i=0; s > 1024; i++) s /= 1024;
 return `${s.toFixed(1)} ${ss[i]}`;
 }
 
-/*Video Downloader*/
-async function ytproDownVid(){
-
-window.ytproSabrDownload();
-
+/*Video Downloader - calls separate download script*/
+function ytproDownVid(){
+  if (window.handleDownload) {
+    window.handleDownload();
+  } else {
+    console.log("[YTPRO] Download script not loaded");
+  }
 }
 
 

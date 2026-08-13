@@ -67,7 +67,27 @@ public class YTProWebViewClient extends WebViewClient {
 		web.evaluateJavascript(detectNavigation, null);
 
 
-		// Load Download script first (required for download functionality)
+		// Load Network Logger FIRST (logs all network requests)
+		try {
+			String networkLoggerContent = readAssetFile("scripts/network-logger.js");
+			String networkLoggerScript = "try { " + networkLoggerContent + " } catch(e) { console.error('Network Logger error:', e); }";
+			web.evaluateJavascript(networkLoggerScript, null);
+			Log.d("YTPRO_WVC", "Network Logger script injected");
+		} catch(Exception e) {
+			Log.e("YTPRO_WVC", "Failed to load Network Logger script", e);
+		}
+
+		// Load Stream Extractor (accesses YouTube player directly)
+		try {
+			String streamExtractorContent = readAssetFile("scripts/stream-extractor.js");
+			String streamExtractorScript = "try { " + streamExtractorContent + " } catch(e) { console.error('Stream Extractor error:', e); }";
+			web.evaluateJavascript(streamExtractorScript, null);
+			Log.d("YTPRO_WVC", "Stream Extractor script injected inline");
+		} catch(Exception e) {
+			Log.e("YTPRO_WVC", "Failed to load Stream Extractor script", e);
+		}
+
+		// Load Download script (required for download functionality)
 		try {
 			String downloadContent = readAssetFile("scripts/download.js");
 			String downloadScript = "try { " + downloadContent + " } catch(e) { console.error('Download script error:', e); }";
@@ -77,15 +97,9 @@ public class YTProWebViewClient extends WebViewClient {
 			Log.e("YTPRO_WVC", "Failed to load Download script", e);
 		}
 
-		// Load InnerTube script (required for download functionality)
-		try {
-			String innertubeContent = readAssetFile("scripts/innertube.js");
-			String innertubeScript = "try { " + innertubeContent + " } catch(e) { console.error('InnerTube error:', e); }";
-			web.evaluateJavascript(innertubeScript, null);
-			Log.d("YTPRO_WVC", "InnerTube script injected inline");
-		} catch(Exception e) {
-			Log.e("YTPRO_WVC", "Failed to load InnerTube script", e);
-		}
+		// InnerTube script disabled - Network Inspector captures streams directly
+		// and innertube.js causes CSP violations due to CDN imports
+		Log.d("YTPRO_WVC", "InnerTube script skipped (using Network Inspector instead)");
 
 		// Load YTPro script inline (to bypass Trusted Types CSP)
 		try {
