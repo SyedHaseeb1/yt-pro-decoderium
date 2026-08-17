@@ -23,6 +23,13 @@ public class YTProWebViewClient extends WebViewClient {
 	}
 	
 	@Override
+	public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+		Log.e("YTPRO_WVC", "Renderer process gone. Detail: " + detail.toString());
+		// Return true to indicate we handled the crash and don't want the app to be killed
+		return true;
+	}
+
+	@Override
 	public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
 		super.onPageStarted(view, url, favicon);
 		Log.d("YTPRO_WVC", "Page started: " + url);

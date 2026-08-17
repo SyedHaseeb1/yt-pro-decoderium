@@ -138,6 +138,9 @@ public class SaveNowDownloadDialog {
 
         // Resume video based on original state
         dialog.setOnDismissListener(dismissDialog -> {
+            if (internalDownloader != null) {
+                internalDownloader.cleanup();
+            }
             resumeVideo();
         });
 
@@ -337,7 +340,8 @@ public class SaveNowDownloadDialog {
             format.formatKey = selectedFormat;
 
             // Use DownloadManager to handle the actual file download
-            internalDownloader = new DownloadManager(activity);
+            // Pass Application Context to ensure the service binding is decoupled from Activity lifecycle
+            internalDownloader = new DownloadManager(activity.getApplicationContext());
             internalDownloader.setProgressCallback(new DownloadManager.DownloadProgressCallback() {
                 @Override
                 public void onFormatDiscovered(List<DownloadManager.DownloadFormat> formats) {
@@ -348,6 +352,7 @@ public class SaveNowDownloadDialog {
                 public void onDownloadProgress(int percentage, long bytesDownloaded) {
                     if (isDownloading && !isPaused) {
                         mainHandler.post(() -> {
+                            if (dialog == null || !dialog.isShowing()) return;
                             downloadMessage.setText("Downloading... " + percentage + "%");
                             int progressWidth = (int) (downloadBtn.getWidth() * percentage / 100f);
                             downloadProgress.getLayoutParams().width = progressWidth;
@@ -361,10 +366,13 @@ public class SaveNowDownloadDialog {
                         isDownloading = false;
                         isPaused = false;
                         downloadFilePath = filePath;
-                        downloadProgress.setVisibility(View.GONE);
-                        Toast.makeText(activity, "Downloaded: " + filePath, Toast.LENGTH_SHORT).show();
-                        downloadMessage.setText("Completed!");
-                        downloadBtn.setEnabled(false);
+                        
+                        if (dialog != null && dialog.isShowing()) {
+                            downloadProgress.setVisibility(View.GONE);
+                            downloadMessage.setText("Completed!");
+                            downloadBtn.setEnabled(false);
+                            Toast.makeText(activity, "Downloaded: " + filePath, Toast.LENGTH_SHORT).show();
+                        }
                         
                         if (internalDownloader != null) {
                             internalDownloader.cleanup();
@@ -376,12 +384,15 @@ public class SaveNowDownloadDialog {
                 public void onError(String message) {
                     mainHandler.post(() -> {
                         isDownloading = false;
-                        downloadProgress.setVisibility(View.GONE);
-                        Toast.makeText(activity, "Download failed: " + message, Toast.LENGTH_SHORT).show();
-                        downloadMessage.setText("Retry");
-                        downloadBtn.setEnabled(true);
-                        if (downloadLoader != null) downloadLoader.setVisibility(View.GONE);
-                        if (downloadIcon != null) downloadIcon.setVisibility(View.VISIBLE);
+                        
+                        if (dialog != null && dialog.isShowing()) {
+                            downloadProgress.setVisibility(View.GONE);
+                            downloadMessage.setText("Retry");
+                            downloadBtn.setEnabled(true);
+                            if (downloadLoader != null) downloadLoader.setVisibility(View.GONE);
+                            if (downloadIcon != null) downloadIcon.setVisibility(View.VISIBLE);
+                            Toast.makeText(activity, "Download failed: " + message, Toast.LENGTH_SHORT).show();
+                        }
                         
                         if (internalDownloader != null) {
                             internalDownloader.cleanup();
@@ -595,4 +606,5 @@ public class SaveNowDownloadDialog {
             }
         }).start();
     }
+    
 }

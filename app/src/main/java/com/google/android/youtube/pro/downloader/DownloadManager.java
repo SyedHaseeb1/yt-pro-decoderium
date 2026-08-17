@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 
 public class DownloadManager {
     private static final String TAG = "YTPRO_DownloadMgr";
-    private Activity activity;
+    private Context context;
     private Handler mainHandler;
     private Timer discoveryTimer;
     private Timer progressTimer;
@@ -99,21 +99,32 @@ public class DownloadManager {
         }
     }
 
-    public DownloadManager(Activity activity) {
-        this.activity = activity;
+    public DownloadManager(Context context) {
+        this.context = context.getApplicationContext();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.availableFormats = new ArrayList<>();
         
-        // Bind to DownloadService
-        Intent intent = new Intent(activity, DownloadService.class);
-        activity.bindService(intent, connection, Context.BIND_AUTO_CREATE);
+        // Ensure we use the application context for binding to avoid Activity leaks
+        try {
+            Intent intent = new Intent(this.context, DownloadService.class);
+            this.context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to bind to DownloadService", e);
+        }
     }
 
     public void cleanup() {
+        this.progressCallback = null;
         if (isBound) {
-            activity.unbindService(connection);
+            try {
+                this.context.unbindService(connection);
+            } catch (Exception e) {
+                Log.w(TAG, "Error during unbind: " + e.getMessage());
+            }
             isBound = false;
+            downloadService = null;
         }
+        stopProgressTracker();
     }
 
     public void setProgressCallback(DownloadProgressCallback callback) {
@@ -366,16 +377,16 @@ public class DownloadManager {
                 String mimePrefix = format.format.matches("mp3|m4a|aac|flac|ogg|opus|wav") ? "audio/" : "video/";
 
                 // Use Intent to start download immediately in the Service
-                Intent intent = new Intent(activity, DownloadService.class);
+                Intent intent = new Intent(this.context, DownloadService.class);
                 intent.setAction(DownloadService.ACTION_DOWNLOAD);
                 intent.putExtra(DownloadService.EXTRA_URL, downloadUrl);
                 intent.putExtra(DownloadService.EXTRA_FILENAME, currentFilename);
                 intent.putExtra(DownloadService.EXTRA_MIME, mimePrefix + format.format);
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    activity.startForegroundService(intent);
+                    this.context.startForegroundService(intent);
                 } else {
-                    activity.startService(intent);
+                    this.context.startService(intent);
                 }
                 
                 // Start progress tracker to update the UI dialog
@@ -484,10 +495,10 @@ public class DownloadManager {
         }
         
         if (isBound && downloadService != null && currentFilename != null) {
-            Intent intent = new Intent(activity, DownloadService.class);
+            Intent intent = new Intent(this.context, DownloadService.class);
             intent.setAction(DownloadService.ACTION_CANCEL);
             intent.putExtra(DownloadService.EXTRA_FILENAME, currentFilename);
-            activity.startService(intent);
+            this.context.startService(intent);
         }
 
         setDownloadState(DownloadState.CANCELLED);

@@ -237,9 +237,19 @@ public class MainActivity extends Activity {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        if (web != null) {
+            web.loadUrl("about:blank");
+            web.stopLoading();
+            web.setWebChromeClient(null);
+            web.setWebViewClient(null);
+            web.destroy();
+            web = null;
+        }
 
-        stopService(new Intent(getApplicationContext(), ForegroundService.class));
+        super.onDestroy();
+        
+        // Don't stop DownloadService, let it survive
+        // stopService(new Intent(getApplicationContext(), ForegroundService.class));
 
 
         if (broadcastReceiver != null) unregisterReceiver(broadcastReceiver);
