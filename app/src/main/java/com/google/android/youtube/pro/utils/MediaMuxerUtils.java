@@ -31,6 +31,118 @@ public class MediaMuxerUtils {
         void onFailure(Exception e);
     }
 
+    /**
+     * Fixes seekability of a video file by re-muxing it.
+     * This is useful for fragmented MP4s or files with missing/broken headers.
+     */
+    public static void fixSeekability(Context context, File sourceFile, MuxCallback callback) {
+        new Thread(() -> {
+            MediaExtractor extractor = new MediaExtractor();
+            MediaMuxer muxer = null;
+            File outputFile = new File(sourceFile.getParent(), "fixed_" + sourceFile.getName());
+            Uri outputUri = null;
+            ParcelFileDescriptor pfd = null;
+
+            try {
+                extractor.setDataSource(sourceFile.getAbsolutePath());
+                
+                int outFormat = sourceFile.getName().endsWith(".webm")
+                        ? MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
+                        : MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4;
+
+                // Create muxer for fixed output
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentResolver resolver = context.getContentResolver();
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, outputFile.getName());
+                    values.put(MediaStore.Downloads.MIME_TYPE, sourceFile.getName().endsWith(".webm") ? "video/webm" : "video/mp4");
+                    values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTPRO");
+                    values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                    outputUri = resolver.insert(MediaStore.Downloads.getContentUri("external"), values);
+                    if (outputUri == null) throw new Exception("MediaStore insert failed");
+                    pfd = resolver.openFileDescriptor(outputUri, "rw");
+                    if (pfd == null) throw new Exception("openFileDescriptor failed");
+                    muxer = new MediaMuxer(pfd.getFileDescriptor(), outFormat);
+                } else {
+                    muxer = new MediaMuxer(outputFile.getAbsolutePath(), outFormat);
+                }
+
+                int trackCount = extractor.getTrackCount();
+                int[] trackIndices = new int[trackCount];
+                for (int i = 0; i < trackCount; i++) {
+                    MediaFormat format = extractor.getTrackFormat(i);
+                    extractor.selectTrack(i);
+                    trackIndices[i] = muxer.addTrack(format);
+                }
+
+                muxer.start();
+
+                ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
+                MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+
+                while (true) {
+                    int sampleTrackIndex = extractor.getSampleTrackIndex();
+                    if (sampleTrackIndex < 0) break;
+
+                    int sampleSize = extractor.readSampleData(buffer, 0);
+                    if (sampleSize < 0) break;
+
+                    info.offset = 0;
+                    info.size = sampleSize;
+                    info.presentationTimeUs = extractor.getSampleTime();
+                    info.flags = extractor.getSampleFlags();
+
+                    muxer.writeSampleData(trackIndices[sampleTrackIndex], buffer, info);
+                    extractor.advance();
+                }
+
+                muxer.stop();
+                muxer.release();
+                muxer = null;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && outputUri != null) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.IS_PENDING, 0);
+                    context.getContentResolver().update(outputUri, values, null, null);
+                }
+
+                // Replace original with fixed file
+                File finalFile = new File(sourceFile.getAbsolutePath());
+                if (sourceFile.delete()) {
+                    if (outputFile.renameTo(finalFile)) {
+                        outputFile = finalFile;
+                    } else {
+                        Log.w(TAG, "Failed to rename fixed file, using fixed_ prefix");
+                    }
+                }
+
+                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, null);
+                
+                if (callback != null) {
+                    final File resultFile = outputFile;
+                    new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(resultFile));
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Fix seekability failed: " + e.getMessage());
+                if (outputFile.exists()) outputFile.delete();
+                if (callback != null) {
+                    new Handler(Looper.getMainLooper()).post(() -> callback.onFailure(e));
+                }
+            } finally {
+                extractor.release();
+                if (muxer != null) {
+                    try { muxer.stop(); } catch (Exception ignored) {}
+                    muxer.release();
+                }
+                if (pfd != null) {
+                    try { pfd.close(); } catch (Exception ignored) {}
+                }
+            }
+        }).start();
+    }
+
     public static void muxVideoAudio(Context context,
                                      File videoFile,
                                      File audioFile,

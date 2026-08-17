@@ -395,15 +395,7 @@ public class DownloadManager {
                     if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
                         stopProgressTracker();
                         
-                        // Capture MIME type for the scanner
-                        String tempMimeType = null;
-                        int mimeColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_MEDIA_TYPE);
-                        if (mimeColumn != -1) {
-                            tempMimeType = cursor.getString(mimeColumn);
-                        }
-                        final String finalMimeType = tempMimeType;
-
-                        // Trigger MediaScanner so the video becomes seekable in players
+                        // Trigger MediaScanner and fix seekability so the video becomes seekable in players
                         mainHandler.postDelayed(() -> {
                             try {
                                 String sanitizedName = currentFilename.replaceAll("[\\\\/:*?\"<>|]", "_");
@@ -414,39 +406,50 @@ public class DownloadManager {
                                 Log.d(TAG, "Finalizing seekability for: " + resultFile.getAbsolutePath());
 
                                 if (resultFile.exists() && resultFile.length() > 0) {
-                                    // Use explicit MIME type if available to help the scanner
-                                    String scanMime = finalMimeType;
-                                    if (sanitizedName.toLowerCase().endsWith(".mp3")) scanMime = "audio/mpeg";
-                                    else if (sanitizedName.toLowerCase().endsWith(".mp4")) scanMime = "video/mp4";
-
-                                    String[] mimeTypes = (scanMime != null) ? new String[]{scanMime} : null;
+                                    Log.d(TAG, "Download finished, fixing seekability for: " + resultFile.getAbsolutePath());
                                     
-                                    MediaScannerConnection.scanFile(activity, new String[]{resultFile.getAbsolutePath()}, mimeTypes, 
-                                        (path, uri) -> {
-                                            Log.d(TAG, "MediaScanner finished. Seekable URI: " + uri);
-                                            // Force a second scan via broadcast if the first one didn't return a URI
-                                            if (uri == null) {
-                                                android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                                                intent.setData(android.net.Uri.fromFile(new File(path)));
-                                                activity.sendBroadcast(intent);
-                                            }
-                                        });
+                                    // Use MediaMuxer to fix seekability (especially for DASH/fragmented MP4s)
+                                    com.google.android.youtube.pro.utils.MediaMuxerUtils.fixSeekability(activity, resultFile, new com.google.android.youtube.pro.utils.MediaMuxerUtils.MuxCallback() {
+                                        @Override
+                                        public void onSuccess(File outputFile) {
+                                            Log.d(TAG, "Seekability fixed successfully for: " + outputFile.getAbsolutePath());
+                                            mainHandler.post(() -> {
+                                                setDownloadState(DownloadState.COMPLETED);
+                                                if (progressCallback != null) {
+                                                    progressCallback.onDownloadProgress(100, bytesTotal);
+                                                    progressCallback.onDownloadCompleted(outputFile.getAbsolutePath());
+                                                }
+                                            });
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            Log.e(TAG, "Failed to fix seekability: " + e.getMessage());
+                                            // Even if fix fails, notify completion of the original file
+                                            mainHandler.post(() -> {
+                                                setDownloadState(DownloadState.COMPLETED);
+                                                if (progressCallback != null) {
+                                                    progressCallback.onDownloadProgress(100, bytesTotal);
+                                                    progressCallback.onDownloadCompleted(resultFile.getAbsolutePath());
+                                                }
+                                            });
+                                        }
+                                    });
                                 } else {
-                                    // Try fallback
+                                    // Try fallback if file not found in expected location
                                     queryAndScanFallback(dm, currentDownloadId);
+                                    mainHandler.post(() -> {
+                                        setDownloadState(DownloadState.COMPLETED);
+                                        if (progressCallback != null) {
+                                            progressCallback.onDownloadProgress(100, bytesTotal);
+                                            progressCallback.onDownloadCompleted("Download complete");
+                                        }
+                                    });
                                 }
                             } catch (Exception e) {
                                 Log.e(TAG, "Failed to trigger MediaScanner", e);
                             }
                         }, 2000); // 2s delay to ensure file is finalized by system
-
-                        mainHandler.post(() -> {
-                            setDownloadState(DownloadState.COMPLETED);
-                            if (progressCallback != null) {
-                                progressCallback.onDownloadProgress(100, bytesTotal);
-                                progressCallback.onDownloadCompleted("Download complete");
-                            }
-                        });
                     } else if (status == android.app.DownloadManager.STATUS_FAILED) {
                         stopProgressTracker();
                         mainHandler.post(() -> {
