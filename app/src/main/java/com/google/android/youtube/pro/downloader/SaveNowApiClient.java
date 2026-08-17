@@ -41,6 +41,7 @@ public class SaveNowApiClient {
     private SaveNowModels.DownloadResponse extractFromHtml(String html, String videoUrl) {
         SaveNowModels.DownloadResponse response = new SaveNowModels.DownloadResponse();
         response.info = new SaveNowModels.DownloadResponse.VideoInfo();
+        response.formats = new java.util.ArrayList<>();
 
         // Extract thumbnail from cardThumbnail element
         String bgImagePattern = "id=\"cardThumbnail\"[^>]*style=\"[^\"]*background-image:\\s*url\\(([^)]+)\\)";
@@ -58,6 +59,27 @@ public class SaveNowApiClient {
         if (matcher.find()) {
             response.title = matcher.group(1).trim();
             response.info.title = response.title;
+        }
+        
+        // Extract formats from JavaScript options array
+        String optionPatternStr = "\\{\\s*key:\\s*['\"]([^'\"]+)['\"]\\s*,\\s*label:\\s*['\"]([^'\"]+)['\"]\\s*,\\s*quality:\\s*['\"]([^'\"]*)['\"]";
+        pattern = java.util.regex.Pattern.compile(optionPatternStr);
+        matcher = pattern.matcher(html);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String label = matcher.group(2);
+            String quality = matcher.group(3);
+            response.formats.add(new SaveNowModels.FormatOption(key, label, quality));
+        }
+        
+        // Extract max poll if present in JS
+        String maxPollPattern = "maxPolls\\s*[:=]\\s*(\\d+)";
+        pattern = java.util.regex.Pattern.compile(maxPollPattern);
+        matcher = pattern.matcher(html);
+        if (matcher.find()) {
+            try {
+                response.max_polls = Integer.parseInt(matcher.group(1));
+            } catch (Exception ignored) {}
         }
 
         return response;

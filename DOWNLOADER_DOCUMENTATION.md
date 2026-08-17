@@ -49,11 +49,14 @@ This approach uses direct HTTP requests to the SAVENOW.TO API to:
 **Key Methods:**
 - **`getFormats()`**: Fetches format data.
 - **`requestDownload()`**: Creates a download task on the server.
-- **`pollProgress()`**: Checks status of a pending task.
+- **`pollProgress()`**: Checks status of a pending task. Dynamically follows worker node subdomains (aiden, penny, etc.).
 
 ### 3. `DownloadManager.java`
 
 **Responsibility:** Wraps the system `DownloadManager` and provides progress callbacks to the UI.
+
+**Post-Processing:**
+- **`fixSeekability()`**: Automatically re-muxes the downloaded file to fix DASH container issues. This ensures the video has a proper duration and is seekable in all players.
 
 ---
 
@@ -65,6 +68,11 @@ This approach uses direct HTTP requests to the SAVENOW.TO API to:
 private static final String BASE_URL = "https://p.savenow.to/api";
 ```
 
+**In `SaveNowDownloadDialog.java`:**
+```java
+private static final int MAX_PROGRESS_POLLS = 60; // 1 minute preparation timeout
+```
+
 ---
 
 ## Troubleshooting
@@ -72,8 +80,9 @@ private static final String BASE_URL = "https://p.savenow.to/api";
 | Issue | Solution |
 |-------|----------|
 | API error | Verify SAVENOW.TO availability in browser |
-| Download timeout | Increase `MAX_PROGRESS_POLLS` in `SaveNowDownloadDialog.java` |
-| Progress stuck | Check network connectivity or server-side issues |
+| Download timeout | Handled by 60s timeout; check worker node logs for stuck progress |
+| No Seek/Seek bar broken | **FIXED:** Re-muxing now happens automatically on completion |
+| Gallery doesn't show video | Check MediaScanner logs; ensure "YTPRO" folder exists in Downloads |
 
 ---
 

@@ -1,12 +1,20 @@
 package com.google.android.youtube.pro.downloader;
 
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.media.MediaScannerConnection;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
+
+import com.google.android.youtube.pro.DownloadService;
 
 import java.io.File;
 
@@ -28,13 +36,32 @@ public class DownloadManager {
     private Handler mainHandler;
     private Timer discoveryTimer;
     private Timer progressTimer;
-    private long currentDownloadId = -1;
     private String currentFilename;
     private DownloadState state = DownloadState.IDLE;
     private List<DownloadFormat> availableFormats;
     private DownloadProgressCallback progressCallback;
     private String currentVideoUrl;
     private VideoDataExtractor.VideoData currentVideoData;
+
+    private DownloadService downloadService;
+    private boolean isBound = false;
+
+    private final ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            DownloadService.LocalBinder binder = (DownloadService.LocalBinder) service;
+            downloadService = binder.getService();
+            isBound = true;
+            Log.d(TAG, "DownloadService bound");
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            isBound = false;
+            downloadService = null;
+            Log.d(TAG, "DownloadService unbound");
+        }
+    };
 
     public enum DownloadState {
         IDLE, DISCOVERING_FORMATS, FORMATS_READY, DOWNLOADING, PAUSED, COMPLETED, ERROR, CANCELLED
@@ -76,6 +103,17 @@ public class DownloadManager {
         this.activity = activity;
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.availableFormats = new ArrayList<>();
+        
+        // Bind to DownloadService
+        Intent intent = new Intent(activity, DownloadService.class);
+        activity.bindService(intent, connection, Context.BIND_AUTO_CREATE);
+    }
+
+    public void cleanup() {
+        if (isBound) {
+            activity.unbindService(connection);
+            isBound = false;
+        }
     }
 
     public void setProgressCallback(DownloadProgressCallback callback) {
@@ -324,27 +362,24 @@ public class DownloadManager {
                 String downloadUrl = constructDownloadUrl(format);
                 Log.d(TAG, "Download URL: " + downloadUrl);
 
-                // Use existing DownloadUtils to enqueue download (must be on main thread for Toast)
                 currentFilename = videoTitle + "_" + format.quality + "." + format.format;
-                
-                // Determine correct MIME category
                 String mimePrefix = format.format.matches("mp3|m4a|aac|flac|ogg|opus|wav") ? "audio/" : "video/";
-                
-                currentDownloadId = com.google.android.youtube.pro.utils.DownloadUtils.downloadFile(
-                    activity,
-                    currentFilename,
-                    downloadUrl,
-                    mimePrefix + format.format
-                );
 
-                if (currentDownloadId != -1) {
-                    startProgressTracker();
+                // Use Intent to start download immediately in the Service
+                Intent intent = new Intent(activity, DownloadService.class);
+                intent.setAction(DownloadService.ACTION_DOWNLOAD);
+                intent.putExtra(DownloadService.EXTRA_URL, downloadUrl);
+                intent.putExtra(DownloadService.EXTRA_FILENAME, currentFilename);
+                intent.putExtra(DownloadService.EXTRA_MIME, mimePrefix + format.format);
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    activity.startForegroundService(intent);
                 } else {
-                    setDownloadState(DownloadState.ERROR);
-                    if (progressCallback != null) {
-                        progressCallback.onError("Failed to start download");
-                    }
+                    activity.startService(intent);
                 }
+                
+                // Start progress tracker to update the UI dialog
+                startServiceProgressTracker();
 
             } catch (Exception e) {
                 Log.e(TAG, "Download failed", e);
@@ -356,120 +391,54 @@ public class DownloadManager {
         });
     }
 
-    private void startProgressTracker() {
+    private void startServiceProgressTracker() {
         stopProgressTracker();
         progressTimer = new Timer();
         progressTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                queryProgress();
+                if (downloadService != null && currentFilename != null) {
+                    int progress = downloadService.getProgress(currentFilename);
+                    long bytes = downloadService.getBytesDownloaded(currentFilename);
+                    boolean isDownloading = downloadService.isDownloading(currentFilename);
+
+                    mainHandler.post(() -> {
+                        if (progress >= 0 && progressCallback != null) {
+                            progressCallback.onDownloadProgress(progress, bytes);
+                        }
+                        
+                        if (!isDownloading && state == DownloadState.DOWNLOADING) {
+                            // Check if there are any pending fixes in the service
+                            if (downloadService != null && downloadService.isDownloading(currentFilename)) {
+                                // Still processing/fixing... wait for next poll
+                                return;
+                            }
+                            checkDownloadCompletion();
+                        }
+                    });
+                }
             }
         }, 0, 1000);
+    }
+
+    private void checkDownloadCompletion() {
+        File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File ytProDir = new File(downloadDir, "YTPRO");
+        File file = new File(ytProDir, currentFilename);
+        
+        if (file.exists()) {
+            stopProgressTracker();
+            setDownloadState(DownloadState.COMPLETED);
+            if (progressCallback != null) {
+                progressCallback.onDownloadCompleted(file.getAbsolutePath());
+            }
+        }
     }
 
     private void stopProgressTracker() {
         if (progressTimer != null) {
             progressTimer.cancel();
             progressTimer = null;
-        }
-    }
-
-    private void queryProgress() {
-        if (currentDownloadId == -1) return;
-
-        android.app.DownloadManager dm = (android.app.DownloadManager) activity.getSystemService(android.content.Context.DOWNLOAD_SERVICE);
-        android.app.DownloadManager.Query query = new android.app.DownloadManager.Query();
-        query.setFilterById(currentDownloadId);
-
-        try (android.database.Cursor cursor = dm.query(query)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int bytesDownloadedColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-                int bytesTotalColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-                int statusColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS);
-
-                if (bytesDownloadedColumn != -1 && bytesTotalColumn != -1 && statusColumn != -1) {
-                    int bytesDownloaded = cursor.getInt(bytesDownloadedColumn);
-                    int bytesTotal = cursor.getInt(bytesTotalColumn);
-                    int status = cursor.getInt(statusColumn);
-
-                    if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
-                        stopProgressTracker();
-                        
-                        // Trigger MediaScanner and fix seekability so the video becomes seekable in players
-                        mainHandler.postDelayed(() -> {
-                            try {
-                                String sanitizedName = currentFilename.replaceAll("[\\\\/:*?\"<>|]", "_");
-                                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                                File ytProDir = new File(downloadDir, "YTPRO");
-                                File resultFile = new File(ytProDir, sanitizedName);
-                                
-                                Log.d(TAG, "Finalizing seekability for: " + resultFile.getAbsolutePath());
-
-                                if (resultFile.exists() && resultFile.length() > 0) {
-                                    Log.d(TAG, "Download finished, fixing seekability for: " + resultFile.getAbsolutePath());
-                                    
-                                    // Use MediaMuxer to fix seekability (especially for DASH/fragmented MP4s)
-                                    com.google.android.youtube.pro.utils.MediaMuxerUtils.fixSeekability(activity, resultFile, new com.google.android.youtube.pro.utils.MediaMuxerUtils.MuxCallback() {
-                                        @Override
-                                        public void onSuccess(File outputFile) {
-                                            Log.d(TAG, "Seekability fixed successfully for: " + outputFile.getAbsolutePath());
-                                            mainHandler.post(() -> {
-                                                setDownloadState(DownloadState.COMPLETED);
-                                                if (progressCallback != null) {
-                                                    progressCallback.onDownloadProgress(100, bytesTotal);
-                                                    progressCallback.onDownloadCompleted(outputFile.getAbsolutePath());
-                                                }
-                                            });
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            Log.e(TAG, "Failed to fix seekability: " + e.getMessage());
-                                            // Even if fix fails, notify completion of the original file
-                                            mainHandler.post(() -> {
-                                                setDownloadState(DownloadState.COMPLETED);
-                                                if (progressCallback != null) {
-                                                    progressCallback.onDownloadProgress(100, bytesTotal);
-                                                    progressCallback.onDownloadCompleted(resultFile.getAbsolutePath());
-                                                }
-                                            });
-                                        }
-                                    });
-                                } else {
-                                    // Try fallback if file not found in expected location
-                                    queryAndScanFallback(dm, currentDownloadId);
-                                    mainHandler.post(() -> {
-                                        setDownloadState(DownloadState.COMPLETED);
-                                        if (progressCallback != null) {
-                                            progressCallback.onDownloadProgress(100, bytesTotal);
-                                            progressCallback.onDownloadCompleted("Download complete");
-                                        }
-                                    });
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "Failed to trigger MediaScanner", e);
-                            }
-                        }, 2000); // 2s delay to ensure file is finalized by system
-                    } else if (status == android.app.DownloadManager.STATUS_FAILED) {
-                        stopProgressTracker();
-                        mainHandler.post(() -> {
-                            setDownloadState(DownloadState.ERROR);
-                            if (progressCallback != null) {
-                                progressCallback.onError("Download failed in system manager");
-                            }
-                        });
-                    } else if (bytesTotal > 0) {
-                        int dl_progress = (int) ((bytesDownloaded * 100L) / bytesTotal);
-                        mainHandler.post(() -> {
-                            if (progressCallback != null) {
-                                progressCallback.onDownloadProgress(dl_progress, bytesDownloaded);
-                            }
-                        });
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error querying progress", e);
         }
     }
 
@@ -489,31 +458,6 @@ public class DownloadManager {
         } catch (Exception e) {
             Log.e(TAG, "Failed to construct download URL", e);
             return "https://p.savenow.to/api/v2/download?format=" + (format.formatKey != null ? format.formatKey : format.format);
-        }
-    }
-
-    private void queryAndScanFallback(android.app.DownloadManager dm, long downloadId) {
-        android.app.DownloadManager.Query query = new android.app.DownloadManager.Query();
-        query.setFilterById(downloadId);
-        try (android.database.Cursor cursor = dm.query(query)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int localUriColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_LOCAL_URI);
-                if (localUriColumn != -1) {
-                    String localUri = cursor.getString(localUriColumn);
-                    if (localUri != null) {
-                        android.net.Uri uri = android.net.Uri.parse(localUri);
-                        String path = uri.getPath();
-                        if (path != null) {
-                            File file = new File(path);
-                            if (file.exists()) {
-                                MediaScannerConnection.scanFile(activity, new String[]{file.getAbsolutePath()}, null, null);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Fallback scan failed", e);
         }
     }
 
@@ -538,11 +482,14 @@ public class DownloadManager {
             discoveryTimer.cancel();
             discoveryTimer = null;
         }
-        if (currentDownloadId != -1) {
-            android.app.DownloadManager dm = (android.app.DownloadManager) activity.getSystemService(android.content.Context.DOWNLOAD_SERVICE);
-            dm.remove(currentDownloadId);
-            currentDownloadId = -1;
+        
+        if (isBound && downloadService != null && currentFilename != null) {
+            Intent intent = new Intent(activity, DownloadService.class);
+            intent.setAction(DownloadService.ACTION_CANCEL);
+            intent.putExtra(DownloadService.EXTRA_FILENAME, currentFilename);
+            activity.startService(intent);
         }
+
         setDownloadState(DownloadState.CANCELLED);
     }
 

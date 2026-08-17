@@ -62,7 +62,9 @@ public class SaveNowModels {
         public String format;
         public String full_format;
         public String thumbnail_url;
+        public int max_polls;
         public VideoInfo info;
+        public java.util.List<FormatOption> formats;
 
         public static class VideoInfo {
             public String title;
@@ -79,6 +81,7 @@ public class SaveNowModels {
             response.format = json.optString("format", "");
             response.full_format = json.optString("full_format", "");
             response.thumbnail_url = json.optString("thumbnail_url", "");
+            response.max_polls = json.optInt("max_polls", 0);
 
             JSONObject infoJson = json.optJSONObject("info");
             if (infoJson != null) {

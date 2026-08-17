@@ -46,6 +46,7 @@ public class SaveNowDownloadDialog {
     private String downloadFileUrl;
     private boolean wasVideoPlaying = true;
     private DownloadManager internalDownloader;
+    private int currentMaxPolls = MAX_PROGRESS_POLLS;
 
     public SaveNowDownloadDialog(Activity activity) {
         this.activity = activity;
@@ -166,12 +167,22 @@ public class SaveNowDownloadDialog {
             public void onSuccess(SaveNowModels.DownloadResponse result) {
                 mainHandler.post(() -> {
                     try {
+                        // Update max polls if provided by API
+                        if (result.max_polls > 0) {
+                            currentMaxPolls = result.max_polls;
+                            Log.d(TAG, "Max polls updated from API: " + currentMaxPolls);
+                        }
 
                         // Setup format spinner
-                        SaveNowModels.FormatOption[] formats = SaveNowModels.FormatList.getDefaultFormats();
                         List<SaveNowModels.FormatOption> formatList = new ArrayList<>();
-                        for (SaveNowModels.FormatOption format : formats) {
-                            formatList.add(format);
+                        if (result.formats != null && !result.formats.isEmpty()) {
+                            formatList.addAll(result.formats);
+                        } else {
+                            // Fallback to defaults
+                            SaveNowModels.FormatOption[] defaults = SaveNowModels.FormatList.getDefaultFormats();
+                            for (SaveNowModels.FormatOption format : defaults) {
+                                formatList.add(format);
+                            }
                         }
 
                         ArrayAdapter<SaveNowModels.FormatOption> adapter = new ArrayAdapter<>(
@@ -226,6 +237,11 @@ public class SaveNowDownloadDialog {
                 }
 
                 Log.d(TAG, "Download task created: " + result.id);
+                
+                // Update max polls if provided in this step
+                if (result.max_polls > 0) {
+                    currentMaxPolls = result.max_polls;
+                }
 
                 // Step 3: Poll progress
                 startProgressPolling(result.progress_url, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader, 0);
@@ -245,7 +261,7 @@ public class SaveNowDownloadDialog {
     }
 
     private void startProgressPolling(String progressUrl, View downloadBtn, TextView downloadMessage, View downloadProgress, ImageView downloadIcon, ProgressBar downloadLoader, int pollCount) {
-        if (pollCount >= MAX_PROGRESS_POLLS) {
+        if (pollCount >= currentMaxPolls) {
             mainHandler.post(() -> {
                 Toast.makeText(activity, "Download timeout", Toast.LENGTH_SHORT).show();
                 downloadBtn.setEnabled(true);
@@ -349,6 +365,10 @@ public class SaveNowDownloadDialog {
                         Toast.makeText(activity, "Downloaded: " + filePath, Toast.LENGTH_SHORT).show();
                         downloadMessage.setText("Completed!");
                         downloadBtn.setEnabled(false);
+                        
+                        if (internalDownloader != null) {
+                            internalDownloader.cleanup();
+                        }
                     });
                 }
 
@@ -362,6 +382,10 @@ public class SaveNowDownloadDialog {
                         downloadBtn.setEnabled(true);
                         if (downloadLoader != null) downloadLoader.setVisibility(View.GONE);
                         if (downloadIcon != null) downloadIcon.setVisibility(View.VISIBLE);
+                        
+                        if (internalDownloader != null) {
+                            internalDownloader.cleanup();
+                        }
                     });
                 }
 

@@ -36,17 +36,33 @@ public class MediaMuxerUtils {
      * This is useful for fragmented MP4s or files with missing/broken headers.
      */
     public static void fixSeekability(Context context, File sourceFile, MuxCallback callback) {
+        fixSeekability(context, Uri.fromFile(sourceFile), sourceFile.getName(), callback);
+    }
+
+    public static void fixSeekability(Context context, Uri sourceUri, String displayName, MuxCallback callback) {
         new Thread(() -> {
             MediaExtractor extractor = new MediaExtractor();
             MediaMuxer muxer = null;
-            File outputFile = new File(sourceFile.getParent(), "fixed_" + sourceFile.getName());
+            File downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+            File ytProDir = new File(downloadDir, "YTPRO");
+            if (!ytProDir.exists()) {
+                if (!ytProDir.mkdirs()) {
+                    Log.e(TAG, "Failed to create YTPRO directory");
+                }
+            }
+            
+            File outputFile = new File(ytProDir, "fixed_" + displayName);
             Uri outputUri = null;
             ParcelFileDescriptor pfd = null;
+            ParcelFileDescriptor sourcePfd = null;
 
             try {
-                extractor.setDataSource(sourceFile.getAbsolutePath());
+                sourcePfd = context.getContentResolver().openFileDescriptor(sourceUri, "r");
+                if (sourcePfd == null) throw new Exception("Failed to open source URI");
                 
-                int outFormat = sourceFile.getName().endsWith(".webm")
+                extractor.setDataSource(sourcePfd.getFileDescriptor());
+                
+                int outFormat = displayName.toLowerCase().endsWith(".webm")
                         ? MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM
                         : MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4;
 
@@ -55,7 +71,7 @@ public class MediaMuxerUtils {
                     ContentResolver resolver = context.getContentResolver();
                     ContentValues values = new ContentValues();
                     values.put(MediaStore.Downloads.DISPLAY_NAME, outputFile.getName());
-                    values.put(MediaStore.Downloads.MIME_TYPE, sourceFile.getName().endsWith(".webm") ? "video/webm" : "video/mp4");
+                    values.put(MediaStore.Downloads.MIME_TYPE, displayName.toLowerCase().endsWith(".webm") ? "video/webm" : "video/mp4");
                     values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTPRO");
                     values.put(MediaStore.Downloads.IS_PENDING, 1);
 
@@ -69,17 +85,62 @@ public class MediaMuxerUtils {
                 }
 
                 int trackCount = extractor.getTrackCount();
-                int[] trackIndices = new int[trackCount];
+                int videoTrackIndex = -1;
+                int audioTrackIndex = -1;
+                int muxerVideoTrackIndex = -1;
+                int muxerAudioTrackIndex = -1;
+                
+                int maxVideoWidth = -1;
+
+                // Find the best video track (highest resolution)
                 for (int i = 0; i < trackCount; i++) {
                     MediaFormat format = extractor.getTrackFormat(i);
-                    extractor.selectTrack(i);
-                    trackIndices[i] = muxer.addTrack(format);
+                    String mime = format.getString(MediaFormat.KEY_MIME);
+                    if (mime != null && mime.startsWith("video/")) {
+                        int width = format.containsKey(MediaFormat.KEY_WIDTH) ? format.getInteger(MediaFormat.KEY_WIDTH) : 0;
+                        if (width > maxVideoWidth) {
+                            maxVideoWidth = width;
+                            videoTrackIndex = i;
+                        }
+                    }
+                }
+                
+                // Find the first audio track
+                for (int i = 0; i < trackCount; i++) {
+                    MediaFormat format = extractor.getTrackFormat(i);
+                    String mime = format.getString(MediaFormat.KEY_MIME);
+                    if (mime != null && mime.startsWith("audio/")) {
+                        audioTrackIndex = i;
+                        break;
+                    }
+                }
+
+                // Add selected tracks to muxer
+                if (videoTrackIndex != -1) {
+                    MediaFormat format = extractor.getTrackFormat(videoTrackIndex);
+                    extractor.selectTrack(videoTrackIndex);
+                    muxerVideoTrackIndex = muxer.addTrack(format);
+                    Log.d(TAG, "Selected video track: " + format.getString(MediaFormat.KEY_MIME) + " " + maxVideoWidth + "px");
+                }
+                if (audioTrackIndex != -1) {
+                    MediaFormat format = extractor.getTrackFormat(audioTrackIndex);
+                    extractor.selectTrack(audioTrackIndex);
+                    muxerAudioTrackIndex = muxer.addTrack(format);
+                    Log.d(TAG, "Selected audio track: " + format.getString(MediaFormat.KEY_MIME));
+                }
+
+                if (muxerVideoTrackIndex == -1 && muxerAudioTrackIndex == -1) {
+                    throw new Exception("No valid tracks found to re-mux");
                 }
 
                 muxer.start();
 
-                ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
+                // Increase buffer size to 8MB for high-res videos
+                ByteBuffer buffer = ByteBuffer.allocate(8 * 1024 * 1024);
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+
+                long videoStartTime = -1;
+                long audioStartTime = -1;
 
                 while (true) {
                     int sampleTrackIndex = extractor.getSampleTrackIndex();
@@ -88,12 +149,28 @@ public class MediaMuxerUtils {
                     int sampleSize = extractor.readSampleData(buffer, 0);
                     if (sampleSize < 0) break;
 
-                    info.offset = 0;
-                    info.size = sampleSize;
-                    info.presentationTimeUs = extractor.getSampleTime();
-                    info.flags = extractor.getSampleFlags();
+                    int targetMuxerIndex = -1;
+                    if (sampleTrackIndex == videoTrackIndex) {
+                        targetMuxerIndex = muxerVideoTrackIndex;
+                        if (videoStartTime == -1) videoStartTime = extractor.getSampleTime();
+                    } else if (sampleTrackIndex == audioTrackIndex) {
+                        targetMuxerIndex = muxerAudioTrackIndex;
+                        if (audioStartTime == -1) audioStartTime = extractor.getSampleTime();
+                    }
 
-                    muxer.writeSampleData(trackIndices[sampleTrackIndex], buffer, info);
+                    if (targetMuxerIndex != -1) {
+                        info.offset = 0;
+                        info.size = sampleSize;
+                        info.flags = extractor.getSampleFlags();
+                        
+                        // Zero-base the presentation time to avoid seek issues
+                        long startTime = (sampleTrackIndex == videoTrackIndex) ? videoStartTime : audioStartTime;
+                        info.presentationTimeUs = extractor.getSampleTime() - startTime;
+                        
+                        if (info.presentationTimeUs >= 0) {
+                            muxer.writeSampleData(targetMuxerIndex, buffer, info);
+                        }
+                    }
                     extractor.advance();
                 }
 
@@ -107,25 +184,30 @@ public class MediaMuxerUtils {
                     context.getContentResolver().update(outputUri, values, null, null);
                 }
 
-                // Replace original with fixed file
-                File finalFile = new File(sourceFile.getAbsolutePath());
-                if (sourceFile.delete()) {
-                    if (outputFile.renameTo(finalFile)) {
-                        outputFile = finalFile;
-                    } else {
-                        Log.w(TAG, "Failed to rename fixed file, using fixed_ prefix");
+                // If original was a file, try to replace it to keep the original name
+                if ("file".equals(sourceUri.getScheme())) {
+                    String path = sourceUri.getPath();
+                    if (path != null) {
+                        File sourceFile = new File(path);
+                        File finalFile = new File(sourceFile.getAbsolutePath());
+                        if (sourceFile.exists()) {
+                            deleteFile(context, sourceFile);
+                            if (outputFile.renameTo(finalFile)) {
+                                outputFile = finalFile;
+                            }
+                        }
                     }
                 }
 
-                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, null);
-                
-                if (callback != null) {
-                    final File resultFile = outputFile;
-                    new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(resultFile));
-                }
+                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, (path, scanUri) -> {
+                    Log.d(TAG, "Seekability fix complete: " + path);
+                    if (callback != null) {
+                        new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(new File(path)));
+                    }
+                });
 
             } catch (Exception e) {
-                Log.e(TAG, "Fix seekability failed: " + e.getMessage());
+                Log.e(TAG, "Fix seekability failed: " + e.getMessage(), e);
                 if (outputFile.exists()) outputFile.delete();
                 if (callback != null) {
                     new Handler(Looper.getMainLooper()).post(() -> callback.onFailure(e));
@@ -134,10 +216,13 @@ public class MediaMuxerUtils {
                 extractor.release();
                 if (muxer != null) {
                     try { muxer.stop(); } catch (Exception ignored) {}
-                    muxer.release();
+                    try { muxer.release(); } catch (Exception ignored) {}
                 }
                 if (pfd != null) {
                     try { pfd.close(); } catch (Exception ignored) {}
+                }
+                if (sourcePfd != null) {
+                    try { sourcePfd.close(); } catch (Exception ignored) {}
                 }
             }
         }).start();
@@ -306,15 +391,16 @@ public class MediaMuxerUtils {
                 }
                 
                 // Explicitly scan the file to ensure duration is calculated for seekability
-                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, null);
+                MediaScannerConnection.scanFile(context, new String[]{outputFile.getAbsolutePath()}, null, (path, uri) -> {
+                    Log.d(TAG, "Muxing scan finished: " + path);
+                    if (callback != null) {
+                        new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(new File(path)));
+                    }
+                });
 
                 if (pfd != null) { pfd.close(); pfd = null; }
 
                 Log.d(TAG, "Muxing successful: " + outputFile.getName());
-
-                if (callback != null) {
-                    new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(outputFile));
-                }
 
             } catch (Exception e) {
                 Log.e(TAG, "Mux failed: " + e.getMessage());

@@ -1,5 +1,6 @@
 package com.google.android.youtube.pro;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.content.Context;
@@ -122,8 +123,16 @@ public class MainActivity extends Activity {
 
         setupReceiver();
         setupBackNavigation();
+        requestNotificationPermission();
 
+    }
 
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 102);
+            }
+        }
     }
 
 
