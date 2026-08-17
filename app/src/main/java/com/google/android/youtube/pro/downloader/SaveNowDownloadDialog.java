@@ -87,11 +87,14 @@ public class SaveNowDownloadDialog {
         titleView.setText(videoTitle);
         urlView.setText(videoUrl);
 
-        // Load formats
-        loadFormats(thumbnail, formatSpinner, downloadBtn);
-
-        // Handle close button
+        // Handle close button (cancel all operations)
         closeButton.setOnClickListener(v -> {
+            if (internalDownloader != null) {
+                internalDownloader.cancelActiveDownload();
+                internalDownloader.cleanup();
+            }
+            isDownloading = false;
+            isPaused = false;
             if (dialog != null) {
                 dialog.dismiss();
             }
@@ -122,11 +125,19 @@ public class SaveNowDownloadDialog {
                 SaveNowModels.FormatOption format = (SaveNowModels.FormatOption) parent.getItemAtPosition(position);
                 selectedFormat = format.key;
                 Log.d(TAG, "Selected format: " + selectedFormat);
+
+                // Show 4K+ warning for 4K and above resolutions
+                if (selectedFormat != null && isHighResolution(selectedFormat)) {
+                    downloadMessage.setText("⚠️ 4K+ may timeout - API limitation");
+                } else {
+                    downloadMessage.setText("Ready to download");
+                }
             }
 
             @Override
             public void onNothingSelected(android.widget.AdapterView<?> parent) {
                 selectedFormat = null;
+                downloadMessage.setText("Select quality");
             }
         });
 
@@ -152,10 +163,24 @@ public class SaveNowDownloadDialog {
         pauseVideo();
 
         dialog.show();
+
+        // Load formats AFTER dialog is shown
+        loadFormats(thumbnail, formatSpinner, downloadBtn, downloadMessage);
     }
 
-    private void loadFormats(ImageView thumbnail, Spinner formatSpinner, View downloadBtn) {
+    private void loadFormats(ImageView thumbnail, Spinner formatSpinner, View downloadBtn, TextView downloadMessage) {
         downloadBtn.setEnabled(false);
+        formatSpinner.setEnabled(false);
+        downloadMessage.setText("Loading formats...");
+
+        try {
+            ProgressBar formatLoader = dialog.findViewById(R.id.downloadLoader);
+            if (formatLoader != null) {
+                formatLoader.setVisibility(View.VISIBLE);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not find loader view", e);
+        }
 
         // Generate YouTube thumbnail URL from video ID
         String videoId = extractVideoId(videoUrl);
@@ -196,13 +221,24 @@ public class SaveNowDownloadDialog {
                         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                         formatSpinner.setAdapter(adapter);
 
-                        // Enable download button
+                        // Enable controls
+                        formatSpinner.setEnabled(true);
                         downloadBtn.setEnabled(true);
+                        downloadMessage.setText("Select quality");
+
+                        try {
+                            ProgressBar loader = dialog.findViewById(R.id.downloadLoader);
+                            if (loader != null) {
+                                loader.setVisibility(View.GONE);
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "Could not hide loader view", e);
+                        }
 
                         Log.d(TAG, "Formats loaded successfully");
                     } catch (Exception e) {
                         Log.e(TAG, "Error setting up UI", e);
-                        Toast.makeText(activity, "Error loading formats", Toast.LENGTH_SHORT).show();
+                        showErrorDialog("Error loading formats: " + e.getMessage());
                     }
                 });
             }
@@ -211,11 +247,27 @@ public class SaveNowDownloadDialog {
             public void onError(String error) {
                 mainHandler.post(() -> {
                     Log.e(TAG, "Error: " + error);
-                    Toast.makeText(activity, error, Toast.LENGTH_SHORT).show();
-                    downloadBtn.setEnabled(false);
+                    showErrorDialog(error);
                 });
             }
         });
+    }
+
+    private void closeDialogWithError(String errorMessage) {
+        if (internalDownloader != null) {
+            internalDownloader.cancelActiveDownload();
+            internalDownloader.cleanup();
+        }
+
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+
+        new AlertDialog.Builder(activity)
+                .setTitle("Download Error")
+                .setMessage(errorMessage)
+                .setPositiveButton("OK", (d, w) -> d.dismiss())
+                .show();
     }
 
     private void startDownloadFlow(View downloadBtn, TextView downloadMessage, View downloadProgress, ImageView downloadIcon, ProgressBar downloadLoader) {
@@ -224,6 +276,12 @@ public class SaveNowDownloadDialog {
         downloadProgress.setVisibility(View.GONE);
         if (downloadIcon != null) downloadIcon.setVisibility(View.GONE);
         if (downloadLoader != null) downloadLoader.setVisibility(View.VISIBLE);
+
+        // Disable format selection during download
+        View formatSpinner = dialog.findViewById(R.id.cardFormat);
+        if (formatSpinner != null) {
+            formatSpinner.setEnabled(false);
+        }
 
         // Step 2: Request download
         apiClient.requestDownload(videoUrl, selectedFormat, new SaveNowApiClient.ApiCallback<SaveNowModels.DownloadResponse>() {
@@ -254,10 +312,7 @@ public class SaveNowDownloadDialog {
             public void onError(String error) {
                 mainHandler.post(() -> {
                     Log.e(TAG, "Error: " + error);
-                    Toast.makeText(activity, error, Toast.LENGTH_SHORT).show();
-                    downloadBtn.setEnabled(true);
-                    downloadMessage.setText("Download");
-                    downloadProgress.setVisibility(View.GONE);
+                    showErrorDialog(error);
                 });
             }
         });
@@ -266,10 +321,9 @@ public class SaveNowDownloadDialog {
     private void startProgressPolling(String progressUrl, View downloadBtn, TextView downloadMessage, View downloadProgress, ImageView downloadIcon, ProgressBar downloadLoader, int pollCount) {
         if (pollCount >= currentMaxPolls) {
             mainHandler.post(() -> {
-                Toast.makeText(activity, "Download timeout", Toast.LENGTH_SHORT).show();
-                downloadBtn.setEnabled(true);
-                downloadMessage.setText("Download");
-                downloadProgress.setVisibility(View.GONE);
+                String timeoutMsg = "Download preparation timeout. Video may not be downloadable or API may have restrictions.";
+                Log.e(TAG, "Download polling timeout after " + pollCount + " polls");
+                showErrorDialog(timeoutMsg);
             });
             return;
         }
@@ -292,6 +346,15 @@ public class SaveNowDownloadDialog {
                             // Use the actual format returned by the API if possible
                             String apiFormat = result.format != null && !result.format.isEmpty() ? result.format.toLowerCase() : selectedFormat;
                             downloadFile(result.download_url, result.title, apiFormat, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader);
+                        } else if (result.progress >= 1000 && (result.download_url == null || result.download_url.isEmpty())) {
+                            // API finished processing but download not available (error state)
+                            // Use API's text message directly - it's already user-friendly
+                            String errorMsg = result.text != null && !result.text.isEmpty()
+                                ? result.text
+                                : "This video cannot be downloaded. Try a different video.";
+
+                            Log.e(TAG, "API error: " + errorMsg);
+                            showErrorDialog(errorMsg);
                         } else {
                             // Continue polling
                             startProgressPolling(progressUrl, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader, pollCount + 1);
@@ -303,10 +366,7 @@ public class SaveNowDownloadDialog {
                 public void onError(String error) {
                     mainHandler.post(() -> {
                         Log.e(TAG, "Poll error: " + error);
-                        downloadMessage.setText("Retry");
-                        downloadBtn.setEnabled(true);
-                        if (downloadLoader != null) downloadLoader.setVisibility(View.GONE);
-                        if (downloadIcon != null) downloadIcon.setVisibility(View.VISIBLE);
+                        showErrorDialog(error);
                     });
                 }
             });
@@ -371,7 +431,6 @@ public class SaveNowDownloadDialog {
                             downloadProgress.setVisibility(View.GONE);
                             downloadMessage.setText("Completed!");
                             downloadBtn.setEnabled(false);
-                            Toast.makeText(activity, "Downloaded: " + filePath, Toast.LENGTH_SHORT).show();
                         }
                         
                         if (internalDownloader != null) {
@@ -384,16 +443,8 @@ public class SaveNowDownloadDialog {
                 public void onError(String message) {
                     mainHandler.post(() -> {
                         isDownloading = false;
-                        
-                        if (dialog != null && dialog.isShowing()) {
-                            downloadProgress.setVisibility(View.GONE);
-                            downloadMessage.setText("Retry");
-                            downloadBtn.setEnabled(true);
-                            if (downloadLoader != null) downloadLoader.setVisibility(View.GONE);
-                            if (downloadIcon != null) downloadIcon.setVisibility(View.VISIBLE);
-                            Toast.makeText(activity, "Download failed: " + message, Toast.LENGTH_SHORT).show();
-                        }
-                        
+                        showErrorDialog("Download failed: " + message);
+
                         if (internalDownloader != null) {
                             internalDownloader.cleanup();
                         }
@@ -417,11 +468,8 @@ public class SaveNowDownloadDialog {
 
         } catch (Exception e) {
             Log.e(TAG, "Error downloading file", e);
-            Toast.makeText(activity, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            showErrorDialog("Error: " + e.getMessage());
             isDownloading = false;
-            downloadBtn.setEnabled(true);
-            downloadMessage.setText("Retry");
-            downloadProgress.setVisibility(View.GONE);
         }
     }
 
@@ -477,7 +525,6 @@ public class SaveNowDownloadDialog {
             isDownloading = false;
             downloadMessage.setText("Resume");
             Log.d(TAG, "Download canceled via internalDownloader");
-            Toast.makeText(activity, "Download canceled", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -583,6 +630,135 @@ public class SaveNowDownloadDialog {
         }
         // Audio formats don't have specific codecs in this context
         return formatKey.toUpperCase();
+    }
+
+    private boolean isHighResolution(String formatKey) {
+        if (formatKey == null) return false;
+        String lower = formatKey.toLowerCase();
+        // Check for 4K, 8K, and above
+        return lower.matches("4k|8k|2160|4320|5k|6k|7k") ||
+               lower.contains("4k") ||
+               lower.contains("8k") ||
+               lower.contains("2160") ||
+               lower.contains("4320");
+    }
+
+    private String getUserFriendlyError(String technicalError) {
+        if (technicalError == null) {
+            return "Something went wrong. Please try again.";
+        }
+
+        String lower = technicalError.toLowerCase();
+
+        // If message is already simple/user-friendly from API, use it directly
+        if (isSimpleUserMessage(technicalError)) {
+            return technicalError;
+        }
+
+        // Parse technical errors
+        if (lower.contains("502") || lower.contains("503") || lower.contains("overloaded")) {
+            return "The download server is busy right now.\n\nPlease wait a few minutes and try again.";
+        }
+
+        if (lower.contains("504") || lower.contains("timeout") || lower.contains("preparation timeout")) {
+            return "The download is taking too long.\n\nThis video might be:\n• Protected by YouTube\n• Too large to process\n• Temporarily unavailable\n\nTry a lower quality or a different video.";
+        }
+
+        if (lower.contains("not available for download")) {
+            return "This video cannot be downloaded.\n\nSome videos are protected by YouTube or the content creator.\n\nTry a different video.";
+        }
+
+        if (lower.contains("400") || lower.contains("bad request")) {
+            return "The video URL is invalid or the video is no longer available.\n\nPlease check the URL and try again.";
+        }
+
+        if (lower.contains("404") || lower.contains("not found")) {
+            return "This video could not be found.\n\nThe video might have been deleted or made private.\n\nPlease check the URL.";
+        }
+
+        if (lower.contains("network") || lower.contains("connection")) {
+            return "Network error. Please check your internet connection and try again.";
+        }
+
+        if (lower.contains("failed to load formats")) {
+            return "Could not get video details.\n\nPlease check your internet connection and try again.";
+        }
+
+        if (lower.contains("download failed")) {
+            return "The file could not be saved to your device.\n\nPlease check:\n• You have enough storage space\n• You gave the app permission to save files\n\nThen try again.";
+        }
+
+        if (lower.contains("error loading formats")) {
+            return "Could not load video options.\n\nPlease try again.";
+        }
+
+        // Fallback for unknown errors
+        return "Something went wrong.\n\nPlease try again. If the problem continues, try:\n• Checking your internet connection\n• Restarting the app\n• Trying a different video";
+    }
+
+    private boolean isSimpleUserMessage(String message) {
+        if (message == null) return false;
+
+        String lower = message.toLowerCase();
+
+        // Check for API messages that are already user-friendly
+        return lower.contains("4k") ||
+               lower.contains("8k") ||
+               lower.contains("not supported") ||
+               lower.contains("not available") ||
+               lower.contains("protected") ||
+               lower.contains("restricted") ||
+               lower.contains("please select") ||
+               lower.contains("try") ||
+               lower.contains("lower quality");
+    }
+
+    private void showErrorDialog(String errorMessage) {
+        // Dismiss the current download dialog if showing
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+
+        // Cleanup downloader
+        if (internalDownloader != null) {
+            internalDownloader.cancelActiveDownload();
+            internalDownloader.cleanup();
+        }
+
+        // Create error dialog
+        LayoutInflater inflater = LayoutInflater.from(activity);
+        View errorView = inflater.inflate(R.layout.dialog_error, null);
+
+        // Convert technical error to user-friendly message
+        String userMessage = getUserFriendlyError(errorMessage);
+        Log.d(TAG, "Technical error: " + errorMessage);
+        Log.d(TAG, "User message: " + userMessage);
+
+        // Set error message
+        TextView errorMsg = errorView.findViewById(R.id.errorMessage);
+        if (errorMsg != null) {
+            errorMsg.setText(userMessage);
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setView(errorView);
+        AlertDialog errorDialog = builder.create();
+        errorDialog.setCancelable(false);
+
+        if (errorDialog.getWindow() != null) {
+            errorDialog.getWindow().setBackgroundDrawable(new ColorDrawable(android.graphics.Color.TRANSPARENT));
+        }
+
+        // Handle OK button
+        View okButton = errorView.findViewById(R.id.errorOkButton);
+        if (okButton != null) {
+            okButton.setOnClickListener(v -> {
+                errorDialog.dismiss();
+                resumeVideo();
+            });
+        }
+
+        errorDialog.show();
     }
 
     private void loadThumbnail(ImageView imageView, String imageUrl) {

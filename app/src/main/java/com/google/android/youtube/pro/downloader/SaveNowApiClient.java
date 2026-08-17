@@ -129,7 +129,7 @@ public class SaveNowApiClient {
         try {
             int responseCode = connection.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new Exception("HTTP Error: " + responseCode);
+                throw new Exception(getHttpErrorMessage(responseCode));
             }
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
@@ -157,7 +157,7 @@ public class SaveNowApiClient {
         try {
             int responseCode = connection.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new Exception("HTTP Error: " + responseCode);
+                throw new Exception(getHttpErrorMessage(responseCode));
             }
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
@@ -174,6 +174,28 @@ public class SaveNowApiClient {
             return new JSONObject(responseText);
         } finally {
             connection.disconnect();
+        }
+    }
+
+    private String getHttpErrorMessage(int responseCode) {
+        switch (responseCode) {
+            case 400:
+                return "Bad request. Invalid video URL or format.";
+            case 401:
+                return "Unauthorized. API authentication failed.";
+            case 403:
+                return "Forbidden. Video may be restricted or unavailable.";
+            case 404:
+                return "Video not found. Check the URL.";
+            case 429:
+                return "Too many requests. Please wait and try again.";
+            case 502:
+            case 503:
+                return "API server is overloaded. Please try again in a few moments.";
+            case 504:
+                return "API server timeout. Please try again.";
+            default:
+                return "HTTP Error " + responseCode + ". Please try again.";
         }
     }
 }

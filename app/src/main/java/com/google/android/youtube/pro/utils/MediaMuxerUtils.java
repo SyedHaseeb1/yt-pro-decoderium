@@ -1,5 +1,6 @@
 package com.google.android.youtube.pro.utils;
 
+import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -17,14 +18,15 @@ import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.util.Log;
 
-import com.arthenica.ffmpegkit.FFmpegKit;
-import com.arthenica.ffmpegkit.ReturnCode;
-
+import com.antonkarpenko.ffmpegkit.FFmpegKit;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.Objects;
 
 public class MediaMuxerUtils {
 
@@ -39,6 +41,7 @@ public class MediaMuxerUtils {
         fixSeekability(context, Uri.fromFile(sourceFile), sourceFile.getName(), callback);
     }
 
+    @SuppressLint("WrongConstant")
     public static void fixSeekability(Context context, Uri sourceUri, String displayName, MuxCallback callback) {
         new Thread(() -> {
             MediaExtractor extractor = new MediaExtractor();
@@ -134,7 +137,7 @@ public class MediaMuxerUtils {
                     extractor.unselectTrack(i);
                 }
                 if (minStartTime == Long.MAX_VALUE) minStartTime = 0;
-                
+
                 if (videoTrackIndex != -1) extractor.selectTrack(videoTrackIndex);
                 if (audioTrackIndex != -1) extractor.selectTrack(audioTrackIndex);
 
@@ -172,19 +175,19 @@ public class MediaMuxerUtils {
                     baseName = displayName.substring(0, lastDot);
                     extension = displayName.substring(lastDot);
                 }
-                
+
                 // Override extension if we changed the container to WebM
                 if (outFormat == MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM) {
                     extension = ".webm";
                 }
-                
+
                 String finalName = baseName + "_ytpro" + extension;
 
                 // 2. Delete the original unseekable file
                 if ("content".equals(sourceUri.getScheme())) {
                     context.getContentResolver().delete(sourceUri, null, null);
                 } else {
-                    File oldFile = new File(sourceUri.getPath());
+                    File oldFile = new File(Objects.requireNonNull(sourceUri.getPath()));
                     if (oldFile.exists()) oldFile.delete();
                 }
 
@@ -195,11 +198,11 @@ public class MediaMuxerUtils {
                     values.put(MediaStore.Downloads.MIME_TYPE, finalName.toLowerCase().endsWith(".webm") ? "video/webm" : "video/mp4");
                     values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/YTPRO");
                     values.put(MediaStore.Downloads.IS_PENDING, 0);
-                    
+
                     Uri finalUri = context.getContentResolver().insert(MediaStore.Downloads.getContentUri("external"), values);
                     if (finalUri != null) {
                         try (OutputStream os = context.getContentResolver().openOutputStream(finalUri);
-                             InputStream is = new FileInputStream(tempFile)) {
+                             InputStream is = Files.newInputStream(tempFile.toPath())) {
                             byte[] ioBuf = new byte[1024 * 1024];
                             int len;
                             while ((len = is.read(ioBuf)) != -1) {
@@ -215,7 +218,7 @@ public class MediaMuxerUtils {
                     tempFile.renameTo(finalFile);
                     MediaScannerConnection.scanFile(context, new String[]{finalFile.getAbsolutePath()}, null, null);
                 }
-                
+
                 tempFile.delete();
 
                 if (callback != null) {
@@ -255,16 +258,34 @@ public class MediaMuxerUtils {
                 sourceFile = sourceUri.getPath();
             }
 
-            // Remux with FFmpeg to WebM (preserves all codecs)
-            String ffmpegCmd = String.format("-i \"%s\" -c copy -y \"%s\"",
-                sourceFile, tempFile.getAbsolutePath());
+            String cmd = "-i \"" + sourceFile + "\" -c copy -y \"" + tempFile.getAbsolutePath() + "\"";
 
-            int returnCode = FFmpegKit.execute(ffmpegCmd).getReturnCode().getValue();
-            if (returnCode != 0) {
-                throw new Exception("FFmpeg remux failed with code: " + returnCode);
+            Log.d(TAG, "FFmpeg remux started");
+            FFmpegKit.executeAsync(cmd, session -> {
+                if (session.getReturnCode().isSuccess(session.getReturnCode())) {
+                    Log.d(TAG, "FFmpeg remux completed successfully");
+                    handleRemuxSuccess(context, sourceUri, displayName, tempFile, callback);
+                } else {
+                    Log.e(TAG, "FFmpeg remux failed");
+                    if (tempFile.exists()) tempFile.delete();
+                    if (callback != null) {
+                        new Handler(Looper.getMainLooper()).post(() ->
+                            callback.onFailure(new Exception("FFmpeg failed")));
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "FFmpeg remux setup failed", e);
+            if (tempFile.exists()) tempFile.delete();
+            if (callback != null) {
+                new Handler(Looper.getMainLooper()).post(() -> callback.onFailure(e));
             }
+        }
+    }
 
-            // Delete original and move fixed file
+    private static void handleRemuxSuccess(Context context, Uri sourceUri, String displayName, File tempFile, MuxCallback callback) {
+        try {
+            // Delete original
             if ("content".equals(sourceUri.getScheme())) {
                 context.getContentResolver().delete(sourceUri, null, null);
             } else {
@@ -313,7 +334,7 @@ public class MediaMuxerUtils {
                 new Handler(Looper.getMainLooper()).post(() -> callback.onSuccess(new File(finalName)));
             }
         } catch (Exception e) {
-            Log.e(TAG, "FFmpeg remux failed", e);
+            Log.e(TAG, "Failed to handle remux success", e);
             if (tempFile.exists()) tempFile.delete();
             if (callback != null) {
                 new Handler(Looper.getMainLooper()).post(() -> callback.onFailure(e));
