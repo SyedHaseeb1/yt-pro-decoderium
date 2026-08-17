@@ -29,6 +29,7 @@ public class DownloadManager {
     private Timer discoveryTimer;
     private Timer progressTimer;
     private long currentDownloadId = -1;
+    private String currentFilename;
     private DownloadState state = DownloadState.IDLE;
     private List<DownloadFormat> availableFormats;
     private DownloadProgressCallback progressCallback;
@@ -145,9 +146,9 @@ public class DownloadManager {
 
         StringBuilder content = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
+            String readLine;
+            while ((readLine = reader.readLine()) != null) {
+                content.append(readLine).append("\n");
             }
         }
 
@@ -324,14 +325,14 @@ public class DownloadManager {
                 Log.d(TAG, "Download URL: " + downloadUrl);
 
                 // Use existing DownloadUtils to enqueue download (must be on main thread for Toast)
-                String filename = videoTitle + "_" + format.quality + "." + format.format;
+                currentFilename = videoTitle + "_" + format.quality + "." + format.format;
                 
                 // Determine correct MIME category
                 String mimePrefix = format.format.matches("mp3|m4a|aac|flac|ogg|opus|wav") ? "audio/" : "video/";
                 
                 currentDownloadId = com.google.android.youtube.pro.utils.DownloadUtils.downloadFile(
                     activity,
-                    filename,
+                    currentFilename,
                     downloadUrl,
                     mimePrefix + format.format
                 );
@@ -394,16 +395,50 @@ public class DownloadManager {
                     if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
                         stopProgressTracker();
                         
-                        // Trigger MediaScanner so the video becomes seekable in players
-                        int localUriColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_LOCAL_URI);
-                        if (localUriColumn != -1) {
-                            String localUri = cursor.getString(localUriColumn);
-                            if (localUri != null) {
-                                File file = new File(android.net.Uri.parse(localUri).getPath());
-                                MediaScannerConnection.scanFile(activity, new String[]{file.getAbsolutePath()}, null, null);
-                                Log.d(TAG, "MediaScanner triggered for: " + file.getAbsolutePath());
-                            }
+                        // Capture MIME type for the scanner
+                        String tempMimeType = null;
+                        int mimeColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_MEDIA_TYPE);
+                        if (mimeColumn != -1) {
+                            tempMimeType = cursor.getString(mimeColumn);
                         }
+                        final String finalMimeType = tempMimeType;
+
+                        // Trigger MediaScanner so the video becomes seekable in players
+                        mainHandler.postDelayed(() -> {
+                            try {
+                                String sanitizedName = currentFilename.replaceAll("[\\\\/:*?\"<>|]", "_");
+                                File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                                File ytProDir = new File(downloadDir, "YTPRO");
+                                File resultFile = new File(ytProDir, sanitizedName);
+                                
+                                Log.d(TAG, "Finalizing seekability for: " + resultFile.getAbsolutePath());
+
+                                if (resultFile.exists() && resultFile.length() > 0) {
+                                    // Use explicit MIME type if available to help the scanner
+                                    String scanMime = finalMimeType;
+                                    if (sanitizedName.toLowerCase().endsWith(".mp3")) scanMime = "audio/mpeg";
+                                    else if (sanitizedName.toLowerCase().endsWith(".mp4")) scanMime = "video/mp4";
+
+                                    String[] mimeTypes = (scanMime != null) ? new String[]{scanMime} : null;
+                                    
+                                    MediaScannerConnection.scanFile(activity, new String[]{resultFile.getAbsolutePath()}, mimeTypes, 
+                                        (path, uri) -> {
+                                            Log.d(TAG, "MediaScanner finished. Seekable URI: " + uri);
+                                            // Force a second scan via broadcast if the first one didn't return a URI
+                                            if (uri == null) {
+                                                android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                                                intent.setData(android.net.Uri.fromFile(new File(path)));
+                                                activity.sendBroadcast(intent);
+                                            }
+                                        });
+                                } else {
+                                    // Try fallback
+                                    queryAndScanFallback(dm, currentDownloadId);
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Failed to trigger MediaScanner", e);
+                            }
+                        }, 2000); // 2s delay to ensure file is finalized by system
 
                         mainHandler.post(() -> {
                             setDownloadState(DownloadState.COMPLETED);
@@ -451,6 +486,31 @@ public class DownloadManager {
         } catch (Exception e) {
             Log.e(TAG, "Failed to construct download URL", e);
             return "https://p.savenow.to/api/v2/download?format=" + (format.formatKey != null ? format.formatKey : format.format);
+        }
+    }
+
+    private void queryAndScanFallback(android.app.DownloadManager dm, long downloadId) {
+        android.app.DownloadManager.Query query = new android.app.DownloadManager.Query();
+        query.setFilterById(downloadId);
+        try (android.database.Cursor cursor = dm.query(query)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int localUriColumn = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_LOCAL_URI);
+                if (localUriColumn != -1) {
+                    String localUri = cursor.getString(localUriColumn);
+                    if (localUri != null) {
+                        android.net.Uri uri = android.net.Uri.parse(localUri);
+                        String path = uri.getPath();
+                        if (path != null) {
+                            File file = new File(path);
+                            if (file.exists()) {
+                                MediaScannerConnection.scanFile(activity, new String[]{file.getAbsolutePath()}, null, null);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Fallback scan failed", e);
         }
     }
 

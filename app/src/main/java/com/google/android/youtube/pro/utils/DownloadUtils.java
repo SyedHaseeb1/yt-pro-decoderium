@@ -43,6 +43,16 @@ public class DownloadUtils {
 
             DownloadManager downloadManager = (DownloadManager) activity.getSystemService(Context.DOWNLOAD_SERVICE);
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            
+            // Standardize User-Agent to Mobile for better compatibility with p.savenow.to
+            String userAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+            request.addRequestHeader("User-Agent", userAgent);
+            request.addRequestHeader("Referer", "https://p.savenow.to/");
+            request.addRequestHeader("Accept", "*/*");
+            request.addRequestHeader("Accept-Language", "en-US,en;q=0.9");
+            request.addRequestHeader("Connection", "keep-alive");
+            
+            android.util.Log.d("YTPRO_DownloadUtils", "Enqueuing download: " + sanitizedName + " from " + url + " as " + correctedMimeType);
 
             request.setTitle(sanitizedName)
                     .setDescription(sanitizedName)

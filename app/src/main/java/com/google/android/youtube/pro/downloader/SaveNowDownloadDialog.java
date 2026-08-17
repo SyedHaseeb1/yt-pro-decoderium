@@ -270,7 +270,9 @@ public class SaveNowDownloadDialog {
 
                         if (result.success == 1) {
                             // Step 4: Download file
-                            downloadFile(result.download_url, result.title, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader);
+                            // Use the actual format returned by the API if possible
+                            String apiFormat = result.format != null && !result.format.isEmpty() ? result.format.toLowerCase() : selectedFormat;
+                            downloadFile(result.download_url, result.title, apiFormat, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader);
                         } else {
                             // Continue polling
                             startProgressPolling(progressUrl, downloadBtn, downloadMessage, downloadProgress, downloadIcon, downloadLoader, pollCount + 1);
@@ -292,8 +294,8 @@ public class SaveNowDownloadDialog {
         }, POLL_INTERVAL);
     }
 
-    private void downloadFile(String downloadUrl, String fileName, View downloadBtn, TextView downloadMessage, View downloadProgress, ImageView downloadIcon, ProgressBar downloadLoader) {
-        Log.d(TAG, "Download URL ready: " + downloadUrl);
+    private void downloadFile(String downloadUrl, String fileName, String actualFormat, View downloadBtn, TextView downloadMessage, View downloadProgress, ImageView downloadIcon, ProgressBar downloadLoader) {
+        Log.d(TAG, "Download URL ready: " + downloadUrl + " (Format: " + actualFormat + ")");
 
         try {
             // Store for resume functionality
@@ -303,10 +305,10 @@ public class SaveNowDownloadDialog {
             downloadMessage.setText("Downloading... 0%");
             downloadBtn.setEnabled(true);  // Keep enabled for pause
 
-            // Determine format details based on selected format key
-            String formatType = determineFormatType(selectedFormat);
-            String quality = determineQuality(selectedFormat);
-            String codec = determineCodec(selectedFormat);
+            // Determine format details based on actual format from API or selected key
+            String formatType = determineFormatType(actualFormat);
+            String quality = determineQuality(actualFormat);
+            String codec = determineCodec(actualFormat);
 
             // Create DownloadFormat object for the existing DownloadManager API
             DownloadManager.DownloadFormat format = new DownloadManager.DownloadFormat(
@@ -451,7 +453,7 @@ public class SaveNowDownloadDialog {
             downloadProgress.setVisibility(View.VISIBLE);
 
             // Re-start the download from the beginning
-            downloadFile(downloadFileUrl, videoTitle, downloadBtn, downloadMessage, downloadProgress, null, null);
+            downloadFile(downloadFileUrl, videoTitle, selectedFormat, downloadBtn, downloadMessage, downloadProgress, null, null);
             Log.d(TAG, "Download resumed");
         }
     }
