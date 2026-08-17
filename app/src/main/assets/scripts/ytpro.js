@@ -42,9 +42,23 @@
             delete obj.playerAds;
             delete obj.adPlacements;
             delete obj.adBreakHeartbeatParams;
-            delete obj.playerOverlays;
             delete obj.adSlotRenderer;
             delete obj.videoDetails?.shortDescription; // Sometimes contains ad data
+
+            // Preserve playerOverlays but remove ad overlays
+            if(obj.playerOverlays && Array.isArray(obj.playerOverlays)) {
+              obj.playerOverlays = obj.playerOverlays.filter(overlay => {
+                if(!overlay) return true;
+                // Remove ad-related overlays
+                if(overlay.playerOverlayRenderer?.style === 'PLAYER_OVERLAY_STYLE_AD') return false;
+                if(overlay.adBreakRenderer) return false;
+                if(overlay.playerOverlayRenderer?.trackingParams) {
+                  const params = overlay.playerOverlayRenderer.trackingParams;
+                  if(JSON.stringify(params).includes('ad')) return false;
+                }
+                return true; // Keep endscreen, autoplay, and other UI
+              });
+            }
             
             // Deep clean arrays and nested objects
             for(let key in obj) {
@@ -196,6 +210,7 @@ localStorage.setItem("gesC","true");
 localStorage.setItem("gesM","false");
 localStorage.setItem("fzoom","false");
 localStorage.setItem("saveCInfo","true");
+localStorage.setItem("autoNext","true");
 localStorage.setItem("geminiModel","3.0 Flash");
 localStorage.setItem("prompt","Give me details about this YouTube video Id: {videoId} , a detailed summary of timestamps with facts , resources and reviews of the main content");
 localStorage.setItem("devMode","false");
@@ -563,6 +578,23 @@ addSkipper(s2[0]);
 }
 };
 
+/*Auto Next Video Handler*/
+player.onended=()=>{
+if(localStorage.getItem("autoNext") == "true"){
+setTimeout(()=>{
+const nextBtn = document.querySelector('[aria-label*="Next"], [title*="next"], [data-tooltip*="next"]');
+if(nextBtn) {
+nextBtn.click();
+} else {
+const endscreenVideos = document.querySelectorAll('ytd-compact-video-renderer, ytm-video-renderer');
+if(endscreenVideos.length > 0) {
+endscreenVideos[0].click();
+}
+}
+}, 500);
+}
+};
+
 
 
 
@@ -910,6 +942,8 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 </button>
 <br>
 <div>Autoskip Sponsors <span data-action="sttCnf" data-value="autoSpn" style="${sttCnf(0,0,"autoSpn")}" ><b style="${sttCnf(0,1,"autoSpn")}"></b></span></div>
+<br>
+<div>Auto Next Video <span data-action="sttCnf" data-value="autoNext" style="${sttCnf(0,0,"autoNext")}" ><b style="${sttCnf(0,1,"autoNext")}"></b></span></div>
 <br>
 <div>Gesture Controls <span data-action="sttCnf" data-value="gesC" style="${sttCnf(0,0,"gesC")}" ><b style="${sttCnf(0,1,"gesC")}"></b></span></div>
 <br>
@@ -2030,6 +2064,21 @@ function(){
   } else {
     console.log("[YTPRO] Download handler not loaded");
   }
+});
+
+/*Auto Next Button*/
+var ytproAutoNextElem=document.createElement("div");
+sty(ytproAutoNextElem);
+ytproAutoNextElem.style.width="100px";
+ytproAutoNextElem.style.opacity=localStorage.getItem("autoNext") == "true" ? "1" : "0.5";
+ytproAutoNextElem.setAttribute("id","ytproAutoNextBtn");
+ytproAutoNextElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M7 10l5 5 5-5z"/><path fill="${c}" d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" opacity="0.3"/></svg><span style="margin-left:8px">Auto Next<span>`;
+ytproMainDiv.appendChild(ytproAutoNextElem);
+ytproAutoNextElem.addEventListener("click",
+function(){
+  const isEnabled = localStorage.getItem("autoNext") == "true";
+  localStorage.setItem("autoNext", isEnabled ? "false" : "true");
+  ytproAutoNextElem.style.opacity = isEnabled ? "0.5" : "1";
 });
 
 /*PIP Button*/
