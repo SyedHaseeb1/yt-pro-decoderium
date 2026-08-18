@@ -96,7 +96,7 @@ public class ForegroundService extends Service {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
                     "Background Play",
-                    NotificationManager.IMPORTANCE_MIN
+                    NotificationManager.IMPORTANCE_LOW
             );
             notificationManager = getSystemService(NotificationManager.class);
             if (notificationManager != null) {
@@ -147,6 +147,10 @@ public class ForegroundService extends Service {
         prevIntent.setAction("PREV_ACTION");
         PendingIntent prevPendingIntent = PendingIntent.getBroadcast(cont, 0, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
 
+        Intent closeIntent = new Intent(cont, NotificationActionReceiver.class);
+        closeIntent.setAction("CLOSE_ACTION");
+        PendingIntent closePendingIntent = PendingIntent.getBroadcast(cont, 0, closeIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
         Notification.Builder builder = (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
 
         builder.setSmallIcon((Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? R.drawable.notification : R.mipmap.app_icon)
@@ -154,7 +158,10 @@ public class ForegroundService extends Service {
                 .setContentText(subtitle)
                 .setLargeIcon(largeIcon)
                 .setContentIntent(openAppPendingIntent)
-                .setStyle(new Notification.MediaStyle().setMediaSession(mediaSession.getSessionToken()))
+                .setStyle(new Notification.MediaStyle()
+                        .setMediaSession(mediaSession.getSessionToken())
+                        .setShowActionsInCompactView(0, 1, 2, 3))
+                .setOngoing(true)
                 .addAction(R.drawable.ic_skip_previous_white, "Previous", prevPendingIntent);
 
         if ("play".equals(action)) {
@@ -170,7 +177,7 @@ public class ForegroundService extends Service {
 
         }
 
-
+        builder.addAction(R.drawable.ic_close, "Close", closePendingIntent);
 
         notificationManager.notify(1, builder.build());
     }
@@ -256,13 +263,20 @@ public class ForegroundService extends Service {
         prevIntent.setAction("PREV_ACTION");
         PendingIntent prevPendingIntent = PendingIntent.getBroadcast(this, 0, prevIntent, PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
+        Intent closeIntent = new Intent(this, NotificationActionReceiver.class);
+        closeIntent.setAction("CLOSE_ACTION");
+        PendingIntent closePendingIntent = PendingIntent.getBroadcast(this, 0, closeIntent, PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
         Notification.Builder builder = (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
 
                 builder.setSmallIcon((Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ? R.drawable.notification : R.mipmap.app_icon)
                 .setContentTitle(title)
                 .setContentText(subtitle)
                 .setLargeIcon(largeIcon)
-                .setStyle(new Notification.MediaStyle().setMediaSession(mediaSession.getSessionToken()))
+                .setStyle(new Notification.MediaStyle()
+                        .setMediaSession(mediaSession.getSessionToken())
+                        .setShowActionsInCompactView(0, 1, 2, 3))
+                .setOngoing(true)
                 .setContentIntent(openAppPendingIntent);
 
 
@@ -271,6 +285,8 @@ public class ForegroundService extends Service {
                     builder.addAction(R.drawable.ic_pause_white, "Pause", pausePendingIntent);
                     
                 builder.addAction(R.drawable.ic_skip_next_white, "Next", nextPendingIntent);
+
+        builder.addAction(R.drawable.ic_close, "Close", closePendingIntent);
 
         Notification notification = builder.build();
 

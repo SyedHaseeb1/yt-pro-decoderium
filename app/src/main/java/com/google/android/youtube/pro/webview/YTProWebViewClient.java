@@ -92,6 +92,16 @@ public class YTProWebViewClient extends WebViewClient {
 			Log.e("YTPRO_WVC", "Failed to load YTPro script", e);
 		}
 
+		// Load bgplay script
+		try {
+			String bgScriptContent = readAssetFile("scripts/bgplay.js");
+			String bgInlineScript = "try { " + bgScriptContent + " } catch(e) { console.error('bgplay error:', e); }";
+			web.evaluateJavascript(bgInlineScript, null);
+			Log.d("YTPRO_WVC", "bgplay script injected inline");
+		} catch(Exception e) {
+			Log.e("YTPRO_WVC", "Failed to load bgplay script", e);
+		}
+
 
 		if (!url.contains("youtube.com/watch") && !url.contains("youtube.com/shorts") && activity.isPlaying) {
 			activity.isPlaying = false;

@@ -137,7 +137,7 @@ public class MainActivity extends Activity {
 
 
     private void setupReceiver() {
-        broadcastReceiver = new MediaCommandReceiver(web);
+        broadcastReceiver = new MediaCommandReceiver(web, this);
         if (Build.VERSION.SDK_INT >= 34 && getApplicationInfo().targetSdkVersion >= 34) {
             registerReceiver(broadcastReceiver, new IntentFilter("TRACKS_TRACKS"), RECEIVER_EXPORTED);
         } else {
@@ -210,29 +210,32 @@ public class MainActivity extends Activity {
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-
+        // Automatic PiP disabled to allow background playback notification to trigger in onPause
+        /*
         if (Build.VERSION.SDK_INT >= 26 && web.getUrl() != null && web.getUrl().contains("watch")) {
-
             if (isPlaying) {
-
                 try {
-
                     isPip = true;
                     PictureInPictureParams
                             params = new PictureInPictureParams.Builder().setAspectRatio(new Rational(portrait ? 9 : 16, portrait ? 16 : 9)).build();
                     enterPictureInPictureMode(params);
-
                 } catch (IllegalStateException e) {
                     e.printStackTrace();
                 }
             }
         }
+        */
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         CookieManager.getInstance().flush();
+
+        // Ensure background playback notification is shown when app goes to background
+        if (isPlaying && !isPip) {
+            web.evaluateJavascript("if(typeof bgPlay === 'function' && !window.serviceRunning) { bgPlay(navigator.mediaSession.metadata); }", null);
+        }
     }
 
     @Override

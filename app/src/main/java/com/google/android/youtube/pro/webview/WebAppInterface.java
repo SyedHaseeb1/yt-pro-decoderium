@@ -147,7 +147,11 @@ public class WebAppInterface {
 		intent.putExtra("icon", icon); intent.putExtra("title", title);
 		intent.putExtra("subtitle", subtitle); intent.putExtra("duration", duration);
 		intent.putExtra("currentPosition", 0); intent.putExtra("action", "play");
-		activity.startService(intent);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+			activity.startForegroundService(intent);
+		} else {
+			activity.startService(intent);
+		}
 	}
 	
 	@JavascriptInterface
