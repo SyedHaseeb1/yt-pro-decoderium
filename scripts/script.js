@@ -1,7 +1,7 @@
 /*****YTPRO*******
-Author: Prateek Chaubey
+Author: Syed Haseeb (Decoderium Technologies)
 Version: 3.9.8
-URI: https://github.com/prateek-chaubey/YTPRO
+URI: https://github.com/SyedHaseeb1/yt-pro-decoderium
 Last Updated On: 1 May , 2026 , 19:25 IST
 */
 
@@ -719,7 +719,7 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <br><br>
 <div data-action="follow" style="min-height:35px;height:auto;width:95%;margin:auto;background:#ee2a7b44;border-radius:30px;margin-bottom:15px;border:1px solid #ee2a7b;display:flex;padding:5px;gap:8px;">
 
-<img style="flex-shrink: 0;height:40px;width:40px;border-radius:50%;" src="https://raw.githubusercontent.com/prateek-chaubey/YTPro/refs/heads/main/.github/img/habitius.webp" >
+<img style="flex-shrink: 0;height:40px;width:40px;border-radius:50%;" src="https://raw.githubusercontent.com/SyedHaseeb1/yt-pro-decoderium/refs/heads/main/.github/img/habitius.webp" >
 <div style="display:flex;flex-direction:column;align-items:flex-start;height:100%;width:auto;flex-shrink:0;font-size:14px;background:re;padding:0;"><b>Please follow Habitius on Instagram</b>For daily habit,lifestyle and health tips </div>
 
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
@@ -790,7 +790,7 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <div>Developer Mode <span data-action="sttCnf" data-value="devMode" style="${sttCnf(0,0,"devMode")}" ><b style="${sttCnf(0,1,"devMode")}"></b></span></div>
 <br><br>
 <p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">Disclaimer</b>: This is an educational project aimed at showcasing javascript injection into a webview to enhance productivity.<br>
-You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
+You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/SyedHaseeb1/yt-pro-decoderium" style="font-family:monospace;" > https://github.com/SyedHaseeb1/yt-pro-decoderium</a>
 <br><br></p><br><br><br>
 
 <div class="geminiModels">
@@ -824,7 +824,7 @@ stroke="black" ${ !isD ? "stroke-width='1'" : "" } stroke-linejoin="round" strok
 
 
 
-<z style="margin-left:6px">by Prateek Chaubey</z>
+<z style="margin-left:6px">by Syed Haseeb (Decoderium Technologies)</z>
 </div>
 `;
 
@@ -858,13 +858,13 @@ var actionsList={
     document.getElementsByClassName('geminiPrompt')[0].style.display='block';
   },
   issues:()=>{
-    Android.oplink('https://github.com/prateek-chaubey/YTPRO/issues');
+    Android.oplink('https://github.com/SyedHaseeb1/yt-pro-decoderium/issues');
   },
   disableCodecs:()=>{
     document.getElementsByClassName('disableCodecs')[0].style.display='block';document.getElementsByClassName('disableCodecs')[0].innerHTML=getYTPROCodecs();
   },
   sponsor:()=>{
-    Android.oplink('https://github.com/sponsors/prateek-chaubey');
+    Android.oplink('https://github.com/sponsors/SyedHaseeb1');
   },
   savePrompt:(el)=>{
     localStorage.setItem('prompt',el.previousElementSibling.value);el.parentElement.style.display='none';
@@ -2636,9 +2636,9 @@ x.addEventListener("click",(e)=>{
   var action=el.dataset.action;
   
   if(action == "url"){
-    Android.oplink('https://github.com/prateek-chaubey/YTPRO/releases');
+    Android.oplink('https://github.com/SyedHaseeb1/yt-pro-decoderium/releases');
   }else if(action == "download"){
-    Android.downvid('YTPRO.zip','https://nightly.link/prateek-chaubey/YTPro/workflows/gradle/main/YTPRO.zip','application/zip');  
+    Android.downvid('YTPRO.zip','https://nightly.link/SyedHaseeb1/yt-pro-decoderium/workflows/gradle/main/YTPRO.zip','application/zip');
   }else if(action =="cancel"){
     el.parentElement.parentElement.parentElement.remove();
   }

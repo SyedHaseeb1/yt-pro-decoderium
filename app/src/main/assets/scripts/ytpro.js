@@ -148,9 +148,9 @@
 })();
 
 /*****YTPRO*******
-Author: Prateek Chaubey
+Author: Syed Haseeb (Decoderium Technologies)
 Version: 3.9.8
-URI: https://github.com/prateek-chaubey/YTPRO
+URI: https://github.com/SyedHaseeb1/yt-pro-decoderium
 Last Updated On: 1 May , 2026 , 19:25 IST
 */
 
@@ -578,26 +578,6 @@ addSkipper(s2[0]);
 }
 };
 
-/*Auto Next Video Handler*/
-player.onended=()=>{
-if(localStorage.getItem("autoNext") == "true"){
-setTimeout(()=>{
-const nextBtn = document.querySelector('[aria-label*="Next"], [title*="next"], [data-tooltip*="next"]');
-if(nextBtn) {
-nextBtn.click();
-} else {
-const endscreenVideos = document.querySelectorAll('ytd-compact-video-renderer, ytm-video-renderer');
-if(endscreenVideos.length > 0) {
-endscreenVideos[0].click();
-}
-}
-}, 500);
-}
-};
-
-
-
-
 
 }
 
@@ -682,14 +662,18 @@ display:"flex",
 alignItems:"center",
 justifyContent:"center",
 fontWeight:"550",
-height:"65%",
-minWidth:"80px",
+height:"55%",
+minWidth:"60px",
 width:"auto",
-borderRadius:"20px",
+borderRadius:"15px",
 background:d,
-fontSize:"12px",
-marginRight:"5px",
+fontSize:"10px",
+marginRight:"4px",
 textAlign:"center",
+border:"none",
+cursor:"pointer",
+color:c,
+padding:"5px 8px",
 };
 for(x in s){
 e.style[x]=s[x];
@@ -924,7 +908,7 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <br><br>
 <div data-action="follow" style="min-height:35px;height:auto;width:95%;margin:auto;background:#ee2a7b44;border-radius:30px;margin-bottom:15px;border:1px solid #ee2a7b;display:flex;padding:5px;gap:8px;">
 
-<img style="flex-shrink: 0;height:40px;width:40px;border-radius:50%;" src="https://raw.githubusercontent.com/prateek-chaubey/YTPro/refs/heads/main/.github/img/habitius.webp" >
+<img style="flex-shrink: 0;height:40px;width:40px;border-radius:50%;" src="https://raw.githubusercontent.com/SyedHaseeb1/yt-pro-decoderium/refs/heads/main/.github/img/habitius.webp" >
 <div style="display:flex;flex-direction:column;align-items:flex-start;height:100%;width:auto;flex-shrink:0;font-size:14px;background:re;padding:0;"><b>Please follow Habitius on Instagram</b>For daily habit,lifestyle and health tips </div>
 
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
@@ -993,7 +977,7 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 <button data-action="shareApp" style="width:calc(100% - 20px);padding:12px;background:${c};color:${dc};border:none;border-radius:15px;font-weight:bold;cursor:pointer;margin-bottom:20px;">📱 Share YT Pro</button>
 <br><br>
 <p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">Disclaimer</b>: This is an unofficial OSS Youtube Mod, all the logos and brand names are property of Google LLC.<br>
-You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
+You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/SyedHaseeb1/yt-pro-decoderium" style="font-family:monospace;" > https://github.com/SyedHaseeb1/yt-pro-decoderium</a>
 <br><br></p><br><br><br>
 
 <div class="geminiModels">
@@ -1027,7 +1011,7 @@ stroke="black" ${ !isD ? "stroke-width='1'" : "" } stroke-linejoin="round" strok
 
 
 
-<z style="margin-left:6px">by Prateek Chaubey</z>
+<z style="margin-left:6px">by Syed Haseeb (Decoderium Technologies)</z>
 </div>
 `;
 
@@ -1058,13 +1042,13 @@ var actionsList={
     document.getElementsByClassName('geminiPrompt')[0].style.display='block';
   },
   issues:()=>{
-    Android.oplink('https://github.com/prateek-chaubey/YTPRO/issues');
+    Android.oplink('https://github.com/SyedHaseeb1/yt-pro-decoderium/issues');
   },
   disableCodecs:()=>{
     document.getElementsByClassName('disableCodecs')[0].style.display='block';document.getElementsByClassName('disableCodecs')[0].innerHTML=getYTPROCodecs();
   },
   sponsor:()=>{
-    Android.oplink('https://github.com/sponsors/prateek-chaubey');
+    Android.oplink('https://github.com/sponsors/SyedHaseeb1');
   },
   savePrompt:(el)=>{
     localStorage.setItem('prompt',el.previousElementSibling.value);el.parentElement.style.display='none';
@@ -2064,21 +2048,6 @@ function(){
   } else {
     console.log("[YTPRO] Download handler not loaded");
   }
-});
-
-/*Auto Next Button*/
-var ytproAutoNextElem=document.createElement("div");
-sty(ytproAutoNextElem);
-ytproAutoNextElem.style.width="100px";
-ytproAutoNextElem.style.opacity=localStorage.getItem("autoNext") == "true" ? "1" : "0.5";
-ytproAutoNextElem.setAttribute("id","ytproAutoNextBtn");
-ytproAutoNextElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M7 10l5 5 5-5z"/><path fill="${c}" d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" opacity="0.3"/></svg><span style="margin-left:8px">Auto Next<span>`;
-ytproMainDiv.appendChild(ytproAutoNextElem);
-ytproAutoNextElem.addEventListener("click",
-function(){
-  const isEnabled = localStorage.getItem("autoNext") == "true";
-  localStorage.setItem("autoNext", isEnabled ? "false" : "true");
-  ytproAutoNextElem.style.opacity = isEnabled ? "0.5" : "1";
 });
 
 /*PIP Button*/

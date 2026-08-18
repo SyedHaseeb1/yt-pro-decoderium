@@ -182,7 +182,7 @@ public class WebAppInterface {
 	}
 	
 	private void sendUpdateBroadcast(long ct, String action) {
-		activity.sendBroadcast(new Intent("UPDATE_NOTIFICATION")
+		activity.sendBroadcast(new Intent(ForegroundService.ACTION_UPDATE_NOTIFICATION)
 		.putExtra("icon", icon).putExtra("title", title)
 		.putExtra("subtitle", subtitle).putExtra("duration", duration)
 		.putExtra("currentPosition", ct).putExtra("action", action));

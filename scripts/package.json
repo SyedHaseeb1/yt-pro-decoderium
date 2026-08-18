@@ -5,7 +5,7 @@
   "main": "script.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/prateek-chaubey/YTPro.git"
+    "url": "git+https://github.com/SyedHaseeb1/yt-pro-decoderium.git"
   },
   "keywords": [
     "YOUTUBE",
@@ -21,10 +21,10 @@
     "Generative AI",
     "Google Gemini"
   ],
-  "author": "Prateek Chaubey",
+  "author": "Syed Haseeb (Decoderium Technologies)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/prateek-chaubey/YTPro/issues"
+    "url": "https://github.com/SyedHaseeb1/yt-pro-decoderium/issues"
   },
-  "homepage": "https://github.com/prateek-chaubey/YTPro#readme"
+  "homepage": "https://github.com/SyedHaseeb1/yt-pro-decoderium#readme"
 }

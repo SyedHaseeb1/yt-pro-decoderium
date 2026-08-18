@@ -1,7 +1,7 @@
 /*****YTPRO*******
-Author: Prateek Chaubey
+Author: Syed Haseeb (Decoderium Technologies)
 Version: 3.9.8
-URI: https://github.com/prateek-chaubey/YTPRO
+URI: https://github.com/SyedHaseeb1/yt-pro-decoderium
 Last Updated On: 1 May , 2026 , 19:25 IST
 */
 
