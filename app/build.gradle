@@ -10,6 +10,13 @@ android {
         targetSdkVersion 36
         versionCode 10
         versionName "83.98"
+
+        // To reduce APK size, only include the most common mobile architectures.
+        // armeabi-v7a: older 32-bit devices
+        // arm64-v8a: modern 64-bit devices
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
 
     buildTypes {
@@ -22,6 +29,24 @@ android {
     lint {
         abortOnError false
         disable 'GestureBackNavigation'
+    }
+
+    // Build separate APKs for each architecture to significantly reduce file size
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk true // Also build a single APK with both for convenience
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def abi = output.getFilter(com.android.build.OutputFile.ABI)
+            if (abi == null) abi = "universal"
+            outputFileName = "YTPro_v${variant.versionName}_${abi}_${variant.buildType.name}.apk"
+        }
     }
 }
 

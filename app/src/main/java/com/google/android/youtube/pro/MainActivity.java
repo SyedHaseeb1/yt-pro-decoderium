@@ -120,6 +120,8 @@ public class MainActivity extends Activity {
         streamManager = new BinaryStreamManager(web, this);
 
         web.loadUrl(url);
+        web.getSettings().setBuiltInZoomControls(false);
+        web.getSettings().setDisplayZoomControls(false);
 
         setupReceiver();
         setupBackNavigation();
