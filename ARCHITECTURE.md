@@ -344,6 +344,21 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 36
+        
+        // APK size optimization
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+
+    // Build separate APKs for each architecture
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'armeabi-v7a', 'arm64-v8a'
+            universalApk true
+        }
     }
 }
 ```

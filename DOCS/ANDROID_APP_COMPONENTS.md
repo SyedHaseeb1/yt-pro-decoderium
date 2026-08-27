@@ -10,6 +10,7 @@
     - Handles back navigation (`setupBackNavigation`, `handleBackPress`).
     - Manages Picture-in-Picture (PiP) transitions.
     - Manages permissions (Storage).
+    - Configures WebView: **Zoom controls (built-in and display) are disabled** for improved stability.
 
 ### `DownloadService.java`
 - **Role**: Background service for handling video/audio downloads.
