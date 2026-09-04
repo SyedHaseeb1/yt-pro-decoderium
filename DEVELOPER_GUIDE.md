@@ -1,8 +1,17 @@
-# Developer Quick Start Guide
+# Developer Guide & Project Status
 
-Get up to speed with YTPro's download system in 10 minutes.
+## 🌟 Current Branch Focus: UX & Quality
+We are currently prioritizing the **User Experience (UX)** and **App Quality**. While the core streaming remains WebView-based, we are aiming for a "native-like" feel.
 
-## 📚 Understanding the System
+**Key Goals for this Branch:**
+- **Smoothness**: Eliminating jank during JavaScript injection.
+- **Consistency**: Ensuring injected UI elements match the Material Design of the native wrapper.
+- **Resilience**: Better handling of WebView crashes or YouTube UI changes.
+- **Resource Management**: Optimizing memory usage during long streaming sessions.
+
+---
+
+## 📚 Understanding the Downloader System
 
 YTPro has **4 layers** for video downloads:
 

@@ -24,10 +24,16 @@ The project is organized as a standard Android application module (`:app`).
 
 ## Technical Stack
 - **Language**: Java (Android) and JavaScript (Injected).
-- **UI**: WebView-based with native Android components for navigation and background services.
+- **UI**: WebView-based (YouTube Mobile Web) with native Android components for navigation and background services.
 - **Networking**: Standard `HttpURLConnection` and WebView's internal networking.
 - **AI**: Integration with Google Gemini via web-based API calls.
 - **Media**: Android `MediaSession` for background playback control.
+
+## Branch Focus: UX & Quality
+The current development cycle focuses on optimizing the bridge between the WebView and native Android layers. Key initiatives include:
+1. **Injection Optimization**: Reducing the latency of script execution to ensure features like ad-blocking and UI modifications are applied before the user sees the original content.
+2. **UX Synchronization**: Matching the behavior of the WebView (scrolling, gestures) with native Android expectations.
+3. **Stability**: Enhancing the robustness of the `WebAppInterface` to handle edge cases in YouTube's evolving web structure.
 
 ## Execution Flow
 1. `MainActivity` starts and initializes `YTProWebView`.

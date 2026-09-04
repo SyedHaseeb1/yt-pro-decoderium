@@ -173,6 +173,7 @@ var isAp=false; // oh it's for bg play
 const originalPause = HTMLMediaElement.prototype.pause; // well long story short , save the original pause function
 window.PIPause = false; // for pausing video when in PIP
 window.isPIP=false;
+window.isPlayerMinimized = false;
 window.pauseAllowed = true; // allow pause by default
 var sTime=[];
 var webUrls=["m.youtube.com","youtube.com","yout.be","accounts.google.com"];
@@ -196,6 +197,9 @@ audio:["Opus","Mp4a"]
 
 let touchstartY = 0;
 let touchendY = 0;
+let touchstartX = 0;
+let miniPlayerStartX = 0;
+let miniPlayerCurrentX = 0;
 let initialDistance=null;
 
 //swipe controls
@@ -1295,6 +1299,12 @@ return Math.hypot(b.pageX - a.pageX, b.pageY - a.pageY);
 /*touch start*/
 document.body.addEventListener('touchstart', e => {
 touchstartY = e.changedTouches[0].screenY;
+touchstartX = e.changedTouches[0].screenX;
+
+if(window.isPlayerMinimized && (e.target.closest("#player-container-id") || e.target.id === "player-container-id")){
+  miniPlayerStartX = e.changedTouches[0].screenX;
+}
+
 if (e.touches.length === 2) {
 initialDistance = getDistance(e.touches);
 }
@@ -1306,6 +1316,18 @@ initialDistance = getDistance(e.touches);
 /*touch move*/
 document.body.addEventListener('touchmove', (e) => {
 
+if(window.isPlayerMinimized && (e.target.closest("#player-container-id") || e.target.id === "player-container-id")){
+    let deltaX = e.touches[0].screenX - miniPlayerStartX;
+    miniPlayerCurrentX = deltaX;
+    let player = document.getElementById("player-container-id");
+    if(player){
+      player.style.transition = "none";
+      // Maintain the base -10px, -15px offset but add deltaX
+      player.style.transform = `scale(0.55) translate(${deltaX - 10}px, -15px)`;
+      player.style.opacity = 1 - Math.min(0.8, Math.abs(deltaX) / (window.innerWidth / 1.2));
+    }
+    return;
+}
 
 if(stopProp){
 e.stopPropagation();
@@ -1348,6 +1370,38 @@ document.body.addEventListener('touchend', e => {
 
 touchendY = e.changedTouches[0].screenY;
 
+if(window.isPlayerMinimized && miniPlayerCurrentX !== 0){
+    let player = document.getElementById("player-container-id");
+    if(player){
+      player.style.transition = "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease";
+      if (Math.abs(miniPlayerCurrentX) > window.innerWidth * 0.3) {
+          // Dismiss
+          let finalX = miniPlayerCurrentX > 0 ? window.innerWidth : -window.innerWidth;
+          player.style.transform = `scale(0.65) translateX(${finalX}px)`;
+          player.style.opacity = "0";
+          setTimeout(() => {
+              if (window.isPlayerMinimized) {
+                  const video = document.getElementsByClassName('video-stream')[0];
+                  if (video) {
+                    window.pauseAllowed = true;
+                    video.pause();
+                  }
+                  minimize(false, true);
+                  if(window.location.href.includes("watch")){
+                     window.history.back();
+                  }
+              }
+          }, 300);
+      } else {
+          // Restore
+          player.style.transform = `scale(0.65) translateX(0px)`;
+          player.style.opacity = "1";
+      }
+    }
+    miniPlayerCurrentX = 0;
+    return;
+}
+
 if((e.target.className.toString().includes("video-stream") || e.target.className.toString().includes("player-controls-background")) && !document.fullscreenElement && localStorage.getItem("gesM") == "true"){
 checkDirection();
 }
@@ -1368,16 +1422,32 @@ stopProp=false;
 
 
 navigation.addEventListener("navigate", e => {
-if(e.destination.url.indexOf("watch") > -1 || e.destination.url.indexOf("shorts") > -1){
-  dislikes="...";
-fDislikes(e.destination.url);
-checkSponsors(e.destination.url);
-}
+  window.isPlayerMinimized = false;
+  if(e.destination.url.indexOf("watch") > -1 || e.destination.url.indexOf("shorts") > -1){
+    dislikes="...";
+    fDislikes(e.destination.url);
+    checkSponsors(e.destination.url);
+  }
 });
+
+window.ytProHandleBack = function() {
+  if (window.location.hash === "#settings" || window.location.hash === "#hearts" || window.location.hash === "#shareapp") {
+    return false; // Let hashchange handle it or default behavior
+  }
+
+  const video = document.getElementsByClassName('video-stream')[0];
+  const isVideoPlaying = video && !video.paused && !video.ended;
+
+  if ((window.location.pathname.indexOf("watch") > -1 || window.location.pathname.indexOf("shorts") > -1) && !window.isPlayerMinimized && isVideoPlaying) {
+    minimize(true);
+    return true;
+  }
+  return false;
+};
 
 
 /*minimize function to mini the video*/
-function minimize(yes){
+function minimize(yes, isClosing = false){
 
 
 const createIframe=()=>{
@@ -1465,30 +1535,111 @@ var player=document.getElementById("player-container-id");
 //var ogCss=getComputedStyle(player);
 
 if(yes){
-
+window.isPlayerMinimized = true;
 iframe.style.display="block";
 
+player.setAttribute("ogTop", getComputedStyle(player).top);
+player.setAttribute("ogWidth", getComputedStyle(player).width);
+player.setAttribute("ogPosition", getComputedStyle(player).position);
 
-player.setAttribute("ogTop",getComputedStyle(player).top)
+player.style.position = "fixed";
+player.style.width = "100%";
+player.style.borderRadius = "24px";
+player.style.boxShadow = "0 16px 48px rgba(0,0,0,0.6)";
+player.style.overflow = "hidden";
+player.style.webkitMaskImage = "-webkit-radial-gradient(white, black)";
+player.style.border = "2.5px solid rgba(255,255,255,0.2)";
+player.style.background = isD ? "#000000" : "#ffffff";
+player.style.transition = "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
 
+player.style.transformOrigin = "bottom right";
+player.style.transform = "scale(0.55) translate(-10px, -15px)";
+player.style.top = "auto";
+player.style.bottom = "80px";
+player.style.right = "0px";
+player.style.zIndex = "9999";
 
-player.style.transform="scale(0.65)";
-player.style.top=(window.screen.height-(player.getBoundingClientRect().height*2.5))+"px";
-player.style.zIndex="9999";
+  const video = document.getElementsByClassName('video-stream')[0];
+  if(video) {
+    video.style.borderRadius = "24px";
+    video.style.overflow = "hidden";
+  }
+
+  if(!document.getElementById("closeMiniBtn")){
+  var closeBtn = document.createElement("div");
+  closeBtn.id = "closeMiniBtn";
+  closeBtn.innerHTML = "✕";
+  closeBtn.setAttribute("style", `
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    z-index: 2147483647;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    border: 1.5px solid rgba(255,255,255,0.3);
+  `);
+  closeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const video = document.getElementsByClassName('video-stream')[0];
+    if (video) {
+        window.pauseAllowed = true;
+        video.pause();
+    }
+
+    // Hide the player immediately before minimize(false) restores it
+    player.style.transition = "opacity 0.2s ease";
+    player.style.opacity = "0";
+
+    setTimeout(() => {
+        minimize(false, true);
+        // Navigate the main window back to browse if we closed the mini player
+        if(window.location.href.includes("watch")){
+           window.history.back();
+        }
+    }, 200);
+  });
+  player.appendChild(closeBtn);
+} else {
+  var closeBtn = document.getElementById("closeMiniBtn");
+  closeBtn.style.display = "flex";
+  // Ensure it's on top if re-displayed
+  closeBtn.style.zIndex = "2147483647";
+}
 
 
 }else{
-
+window.isPlayerMinimized = false;
 iframe.style.display="none";
 
+if(document.getElementById("closeMiniBtn")){
+  document.getElementById("closeMiniBtn").style.display = "none";
+}
 
-
-player.style.transform="scale(1)";
+player.style.transform="scale(1) translate(0,0)";
 player.style.top=player.getAttribute("ogTop");
+player.style.position = player.getAttribute("ogPosition") || "relative";
+player.style.width = player.getAttribute("ogWidth") || "100%";
+player.style.bottom = "auto";
+player.style.right = "auto";
 player.style.zIndex="normal";
+player.style.borderRadius = "0";
+player.style.boxShadow = "none";
+player.style.border = "none";
+player.style.opacity = isClosing ? "0" : "1";
+player.style.background = "transparent";
 
 player.removeAttribute("ogTop");
-
+player.removeAttribute("ogPosition");
+player.removeAttribute("ogWidth");
 
 }
 }

@@ -161,18 +161,22 @@ public class MainActivity extends Activity {
     }
 
     private void handleBackPress() {
-        if (web.canGoBack()) {
-            lastScrollX = web.getScrollX();
-            lastScrollY = web.getScrollY();
-            Log.d("YTPRO_MAIN", "Going back. Saved scroll: " + lastScrollX + "," + lastScrollY);
-            web.goBack();
-            web.postDelayed(() -> {
-                web.scrollTo(lastScrollX, lastScrollY);
-                Log.d("YTPRO_MAIN", "Restored scroll to: " + lastScrollX + "," + lastScrollY);
-            }, 300);
-        } else {
-            finish();
-        }
+        web.evaluateJavascript("window.ytProHandleBack ? window.ytProHandleBack() : false", value -> {
+            if ("false".equals(value)) {
+                if (web.canGoBack()) {
+                    lastScrollX = web.getScrollX();
+                    lastScrollY = web.getScrollY();
+                    Log.d("YTPRO_MAIN", "Going back. Saved scroll: " + lastScrollX + "," + lastScrollY);
+                    web.goBack();
+                    web.postDelayed(() -> {
+                        web.scrollTo(lastScrollX, lastScrollY);
+                        Log.d("YTPRO_MAIN", "Restored scroll to: " + lastScrollX + "," + lastScrollY);
+                    }, 300);
+                } else {
+                    finish();
+                }
+            }
+        });
     }
 
 

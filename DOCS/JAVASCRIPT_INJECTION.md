@@ -34,3 +34,10 @@
 ### 5. Settings Management
 - Manages various user preferences (e.g., Auto-skip sponsors, Developer mode, Codec preferences) via `localStorage` and a custom settings UI overlay.
 - **Codec Overrider**: Overrides `canPlayType` and `isTypeSupported` to force or block specific codecs (AV1, VP9, etc.) based on user settings.
+
+## Quality & Performance Optimization (Current Focus)
+To improve the UX and app quality, we are implementing:
+1.  **Early Injection**: Injecting critical logic (ad-blocking, fetch interception) as early as possible to prevent "flicker" of original YouTube elements.
+2.  **Debounced MutationObservers**: Optimizing DOM observers to reduce CPU usage and battery drain while maintaining UI responsiveness.
+3.  **Shadow DOM Encapsulation**: Moving custom UI elements into a Shadow DOM to prevent style leaks from the YouTube website and ensure consistent appearance.
+4.  **Error Resilience**: Adding try-catch blocks around all injection points to prevent a single failure from breaking the entire WebView.

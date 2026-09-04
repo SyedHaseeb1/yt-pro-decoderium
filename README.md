@@ -76,6 +76,14 @@ The available variables for gemini prompt are
 
 ## Roadmap
 
+**Current Focus: UX & Quality Improvements**
+- [ ] Refine WebView interactions for smoother, "native-feel" navigation
+- [ ] Enhance UI consistency between injected JavaScript and native components
+- [ ] Optimize script injection timing to eliminate layout shifts (CLS)
+- [ ] Implement robust error handling for network and injection failures
+- [ ] Improve memory management for long-running streaming sessions
+
+**Feature Backlog**
 - [ ] Enhanced audio processing
 - [ ] Skip silence detection
 - [ ] Adaptive bitrate streaming
@@ -90,11 +98,13 @@ This project builds on these excellent open-source projects:
 
 ## Technical Overview
 
-YT Pro is built as an educational demonstration of JavaScript injection into Android WebViews. It showcases:
-- WebView customization and JavaScript bridging
+YT Pro is built as an educational demonstration of JavaScript injection into Android WebViews. While it utilizes the YouTube mobile web interface for streaming, this branch focuses on elevating the **UX and Quality** to bridge the gap between web-based and native experiences.
+
+It showcases:
+- High-performance WebView customization and JS bridging
 - Advanced media controls and background playback
 - Network interception and API manipulation
-- UI enhancement through DOM manipulation
+- UI enhancement through precision DOM manipulation
 
 See [DOCS/](DOCS/) for detailed architecture documentation.
 
